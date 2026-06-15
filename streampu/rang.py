@@ -70,7 +70,7 @@ def positive_tag(instr: str):
     Returns:
         out (str): Tagged string
     """
-    return style.bold + fg.freen + "(II) " + style.reset + instr
+    return style.bold + fg.green + "(II) " + style.reset + instr
 
 
 __all__ = [

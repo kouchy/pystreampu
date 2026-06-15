@@ -11,7 +11,7 @@ using namespace py::literals;
 
 #define PYBIND11_DETAILED_ERROR_MESSAGES
 
-PYBIND11_MODULE(_ext, m)
+PYBIND11_MODULE(_ext, m, py::mod_gil_not_used())
 {
     spu::tools::Buffer_allocator::set_task_autoalloc(true);
     m.def("get_hardware_concurrency", &std::thread::hardware_concurrency);

@@ -90,9 +90,9 @@ def _call_impl(
     if raw_data:
         out = tuple(np.array(sckt, copy=False) for sckt in outputs)
         if len(out) == 1:
-            return out[0]
+            out = out[0]
 
-        return None
+        return out
 
     # Return a tuple of Sockets except that does not contain the status socket
     # If only one output socket, return this socket

@@ -16,9 +16,8 @@ def initializer(n_elmts: int, dtype: streampu._ext.dtype = int32):
     Raises:
         TypeError: if dtype is not a valid dtype
     """
-    if not isinstance(dtype, streampu._ext.dtype):
-        msg = f"type '{type(dtype)}' does not name an StreamPU datatype."
-        raise TypeError(msg)
+    streampu._ext.dtype.throw_if_invalid(dtype)
+
     class_name = f"Initializer_{str(dtype)}"
     class_type = getattr(streampu._ext.ini, class_name)
     return class_type(n_elmts)

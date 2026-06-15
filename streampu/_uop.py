@@ -45,13 +45,8 @@ def _uop_factory(n_elmts: int, uop_type: UType, input_dtype: dtype = int8, outpu
     Raises:
         TypeError: if input_type or output_type are not dtypes
     """
-    if not isinstance(input_dtype, dtype):
-        msg = f"type '{type(input_dtype)}' does not name an StreamPU datatype."
-        raise TypeError(msg)
-
-    if not isinstance(output_dtype, dtype):
-        msg = f"type '{type(input_dtype)}' does not name an StreamPU datatype."
-        raise TypeError(msg)
+    dtype.throw_if_invalid(input_dtype)
+    dtype.throw_if_invalid(output_dtype)
 
     name = f"Unaryop_{str(uop_type)}_{input_dtype.name}_{output_dtype.name}"
     uop_class = getattr(streampu._ext.uop, name)

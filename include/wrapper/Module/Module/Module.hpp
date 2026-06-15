@@ -7,30 +7,27 @@
 
 namespace py = pybind11;
 
-/*
+
 namespace spu
 {
 namespace module
 {
-class Module_Publicist : public Module
+class Module_Trampoline : public Module
 {
   public:
     using Module::Module;
-    Module_Publicist(const Module& m)
-      : Module(m) {};
-    using Module::create_codelet;
-    using Module::create_socket_fwd;
-    using Module::create_socket_in;
-    using Module::create_socket_out;
-    using Module::create_task;
-    using Module::deep_copy;
-    using Module::set_n_frames_per_wave;
-
-    virtual ~Module_Publicist() = default;
+    Module* clone() const override
+    {
+        PYBIND11_OVERRIDE(
+          Module*, // return type
+          Module,  // parent C++ class
+          clone    // method name
+        );
+    }
 };
 } // namespace module
 } // namespace spu
-*/
+
 
 namespace pyspu
 {

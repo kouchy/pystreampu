@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Functionnal tests for Stateless."""
+
 import numpy as np
 
-from streampu import Sequence, Stateless, array, help, uint16
+from streampu import Stateless, array, uint16
 
 
 def test_stateless(dtype):
@@ -21,7 +22,6 @@ def test_stateless(dtype):
 
     mdl.create_socket_in(tsk, "sock_in", 4, dtype)
     mdl.create_socket_out(tsk, "sock_out", 4, dtype)
-    help(mdl)
 
     def processing(_, t, __):  # processing(m,t,id)
         inp = t.sock_in.numpy

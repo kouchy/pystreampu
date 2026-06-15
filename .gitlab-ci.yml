@@ -1,39 +1,43 @@
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  CI_BASE_IMAGE: "python:3.12"
+
+.linux_aff3ct_base: &linux_aff3ct_base
+  image: $CI_BASE_IMAGE
+  tags:
+    - x86
+    - docker
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends gcc g++ cmake git lcov
+    - python --version  # For debugging
+    - python -m venv venv
+    - . venv/bin/activate
+    - python -m pip install --upgrade pip
+    - python -m pip install pybind11==3.0.1
+
+.python_cache: &python_cache
+  key: ${CI_PROJECT_PATH}
+  paths:
+    - .cache/
+    - venv/
 
 stages:
+  - linting
   - build
   - tests
   - coverage-linux
-  - linting
   - build-wheels
   - deploy
 
 
 build-linux:
   stage: build
-  image: registry.gitlab.com/aff3ct/aff3ct/x86_64_ubuntu_gcc:v9.3.0
+  <<: *linux_aff3ct_base
 
   cache:
-    key: ${CI_PROJECT_PATH}
-    paths:
-    - .cache/
-    - venv/
-
-  before_script:
-    - apt update
-    - apt install -y python3
-    - apt install -y python3-pip
-    - python3 --version  # For debugging
-    - pip3 install virtualenv
-    - virtualenv venv
-    - source venv/bin/activate
-
-  tags:
-    - x86_64
-    - linux
-    - docker
+    <<: *python_cache
 
   artifacts:
     name: streampu
@@ -44,40 +48,23 @@ build-linux:
   script:
     - export CC="gcc"
     - export CXX="g++"
-    - pip3 install ../pystreampu -v -Ccmake.define.SPU_OVERRIDE_VERSION=v0.0.0
+    - python -m pip install ../pystreampu -v -Ccmake.define.SPU_OVERRIDE_VERSION=v0.0.0
     - pwd && find
 
 
 tests:
   stage: tests
-  image: registry.gitlab.com/aff3ct/aff3ct/x86_64_ubuntu_gcc:v9.3.0
+  <<: *linux_aff3ct_base
 
   cache:
-    key: ${CI_PROJECT_PATH}
-    paths:
-    - .cache/
-    - venv/
-
-  before_script:
-    - apt update
-    - apt install -y python3
-    - apt install -y python3-pip
-    - python3 --version  # For debugging
-    - pip3 install virtualenv
-    - virtualenv venv
-    - source venv/bin/activate
+    <<: *python_cache
 
   dependencies:
-  - build-linux
-
-  tags:
-  - x86_64
-  - linux
-  - docker
+    - build-linux
 
   script:
-    - pip3 show -f streampu
-    - pytest tests --junitxml=./pystreampu/report.xml
+    - python -m pip show -f streampu
+    - pytest tests --junitxml=report.xml
 
   artifacts:
     when: always
@@ -85,121 +72,91 @@ tests:
       junit: report.xml
 
 
-coverage-linux:
+coverage-python:
   stage: coverage-linux
-  image: registry.gitlab.com/aff3ct/aff3ct/x86_64_ubuntu_gcc:v9.3.0
+  <<: *linux_aff3ct_base
 
-  before_script:
-    - apt update
-    - apt install -y python3
-    - apt install -y python3-pip
-    - python3 --version  # For debugging
-    - pip3 install virtualenv
-    - virtualenv venv
-    - source venv/bin/activate
+  cache:
+    <<: *python_cache
 
-  tags:
-    - x86_64
-    - linux
-    - docker
   coverage: '/.*lines\.*: (\d+.\d+\%)/'
   artifacts:
-     name: code-coverage-report
-     when: always
-     paths:
-       - code_coverage_report/
+    name: python-coverage-report
+    when: always
+    paths:
+      - htmlcov/
+      - coverage.lcov
+  dependencies:
+    - build-linux
   script:
-    - pip3 install pytest-cov
-    - pip3 install lcov-cobertura
-    - apt install -y lcov
+    - python -m pip install pytest-cov
+    - python -m pip install --verbose -e "$CI_PROJECT_DIR" -Ccmake.define.SPU_OVERRIDE_VERSION=v0.0.0
+    - python -c "import streampu; print('streampu loaded from:', streampu.__file__); print('streampu path:', list(streampu.__path__))"
+    - pytest tests --cov=streampu --cov-report=html --cov-report=term --cov-report=lcov
+
+  only:
+    - merge_requests
+
+coverage-cpp:
+  stage: coverage-linux
+  <<: *linux_aff3ct_base
+  timeout: 2h
+  allow_failure: true
+
+  cache:
+    <<: *python_cache
+
+  artifacts:
+    name: cpp-coverage-report
+    when: always
+    paths:
+      - code_coverage_report/
+      - code_coverage_files/
+    reports:
+      junit: report-cpp.xml
+  script:
+    - python -m pip install lcov-cobertura
     - export CXX="g++"
     - export CFLAGS="-g -Wall -funroll-loops -fvisibility=hidden -fvisibility-inlines-hidden -coverage -ftest-coverage -fprofile-arcs"
     - export LFLAGS="-coverage -ftest-coverage -fprofile-arcs"
     - pwd
-    - ./ci/coverage-linux.sh
+    - ./ci/coverage-cpp-linux.sh
+  only:
+    - merge_requests
 
 isort:
   stage: linting
+  <<: *linux_aff3ct_base
 
-  image: registry.gitlab.com/aff3ct/aff3ct/x86_64_ubuntu_gcc:v9.3.0
-
-  before_script:
-    - apt update
-    - apt install -y python3
-    - apt install -y python3-pip
-    - python3 --version  # For debugging
-    - pip3 install virtualenv
-    - virtualenv venv
-    - source venv/bin/activate
-
-  tags:
-  - x86_64
-  - linux
-  - docker
   script:
-  - pip3 install isort
-  - isort ./streampu --check-only
-  - isort ./examples --check-only
-  only:
-  - merge_requests
+    - python -m pip install isort
+    - isort ./streampu --check-only
+    - isort ./examples --check-only
 
 black:
   stage: linting
+  <<: *linux_aff3ct_base
 
-  image: registry.gitlab.com/aff3ct/aff3ct/x86_64_ubuntu_gcc:v9.3.0
-
-  before_script:
-    - apt update
-    - apt install -y python3
-    - apt install -y python3-pip
-    - python3 --version  # For debugging
-    - pip3 install virtualenv
-    - virtualenv venv
-    - source venv/bin/activate
-
-  tags:
-  - x86_64
-  - linux
-  - docker
   script:
-  - pip3 install black
-  - black --check ./streampu
-  - black --check ./examples
-
-  only:
-  - merge_requests
+    - python -m pip install black
+    - black --check ./streampu
+    - black --check ./examples
 
 flake8:
   stage: linting
+  <<: *linux_aff3ct_base
 
-  image: registry.gitlab.com/aff3ct/aff3ct/x86_64_ubuntu_gcc:v9.3.0
-
-  before_script:
-    - apt update
-    - apt install -y python3
-    - apt install -y python3-pip
-    - python3 --version  # For debugging
-    - pip3 install virtualenv
-    - virtualenv venv
-    - source venv/bin/activate
-
-  tags:
-  - x86_64
-  - linux
-  - docker
   script:
-  - pip3 install flake8
-  - flake8 ./streampu
-  - flake8 ./examples
-  only:
-  - merge_requests
+    - python -m pip install flake8
+    - flake8 ./streampu
+    - flake8 ./examples
+
 
 build-wheels-linux:
   stage: build-wheels
-  image: python:3.12
+  image: $CI_BASE_IMAGE
   tags:
-    - x86_64
-    - linux
+    - x86
     - docker
 
 # make a docker daemon available for cibuildwheel to use
@@ -232,19 +189,11 @@ build-wheels-linux:
     expire_in: 1 hour
 
   only:
-  - tags
+    - tags
 
-testpypi :
+testpypi:
   stage: deploy
-
-  before_script:
-    - apt update
-    - apt install -y python3
-    - apt install -y python3-pip
-    - python3 --version
-    - pip3 install virtualenv
-    - virtualenv venv
-    - source venv/bin/activate
+  <<: *linux_aff3ct_base
 
   needs:
     - job: build-wheels-linux
