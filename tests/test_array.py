@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Functionnal tests for array."""
+
 import numpy as np
 
 from streampu import arange, array

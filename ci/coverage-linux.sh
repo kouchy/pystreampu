@@ -17,11 +17,17 @@ python3 -m pytest tests --cov=streampu --cov-report=lcov --cov-report=term
 
 mv coverage.lcov code_coverage_files/streampu.info
 
-lcov --capture --directory build/CMakeFiles/_ext.dir/src\
-     --output-file code_coverage_files/_ext.info
+lcov --capture --directory build/CMakeFiles/_ext.dir/src \
+     --output-file code_coverage_files/_ext.info \
+     --ignore-errors inconsistent \
+     --no-external \
+     --rc geninfo_unexecuted_blocks=1
 
 rc=$?; if [[ $rc != 0 ]]; then exit $rc; fi
-lcov --remove code_coverage_files/_ext.info "*/usr*" "lib/*" --output-file code_coverage_files/_ext_clean.info
+lcov --extract code_coverage_files/_ext.info \
+     "$WD/src/*" "$WD/include/*" "*/src/*" "*/include/*" \
+     --output-file code_coverage_files/_ext_clean.info \
+     --ignore-errors inconsistent,empty
 rc=$?; if [[ $rc != 0 ]]; then exit $rc; fi
 lcov --add-tracefile code_coverage_files/_ext_clean.info -a code_coverage_files/streampu.info -o code_coverage_files/merged.info
 rc=$?; if [[ $rc != 0 ]]; then exit $rc; fi

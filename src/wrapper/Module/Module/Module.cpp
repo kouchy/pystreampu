@@ -18,7 +18,7 @@ using namespace spu::runtime;
 
 void pyspu::wrapper::wrap_module(py::handle scope)
 {
-auto py_module_class = py::class_<Module, spu::tools::Interface_clone, spu::tools::Interface_get_set_n_frames>(
+auto py_module_class = py::class_<Module, spu::tools::Interface_clone, spu::tools::Interface_get_set_n_frames, spu::module::Module_Trampoline>(
       scope,
       "Module",
       py::dynamic_attr());
@@ -70,4 +70,9 @@ auto py_module_class = py::class_<Module, spu::tools::Interface_clone, spu::tool
             Task | Socket : task or socket described by the key.
     )pbdoc",
       py::is_operator());
+
+    //py_module_class.def("deep_copy", &Module::deep_copy, "Create a deep copy of the module.");
+    py_module_class.def_property_readonly("clonable", &Module::is_clonable, "Whether the module is clonable or not.");
+    py_module_class.def_property_readonly("stateful", &Module::is_stateful, "Whether the module is stateful or not.");
+    py_module_class.def_property_readonly("stateless", &Module::is_stateless, "Whether the module is stateless or not.");
 };

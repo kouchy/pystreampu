@@ -98,7 +98,7 @@ pyspu::wrapper::wrap_sequence(py::handle scope)
                        });
 
     sequence_class.def("exec_n_times",
-                       [](spu::runtime::Sequence& self, size_t n_exec = 1)
+                       [](spu::runtime::Sequence& self, size_t n_exec)
                        {
                            py::gil_scoped_release release{};
                            std::atomic<size_t> counter(0);
@@ -118,6 +118,20 @@ pyspu::wrapper::wrap_sequence(py::handle scope)
                                 return false;
                             });
                        }, "terminal"_a, "stream"_a = sys.attr("stdout"), "force_report"_a = false);
+    sequence_class.def("exec_n_times",
+                       [](spu::runtime::Sequence& self, size_t n_exec, spu::tools::Terminal_dump& terminal, std::ostream& stream, bool force_report)
+                       {
+                           py::gil_scoped_release release{};
+                           std::atomic<size_t> counter(0);
+                           self.exec(
+                            [&](const std::vector<const int*>& statuses) -> bool
+                            {
+                                py::gil_scoped_acquire gil;
+                                if (statuses.back() != nullptr || force_report)
+                                   terminal.temp_report(stream);
+                                return ++counter >= n_exec;
+                            });
+                       }, "n_exec"_a, "terminal"_a, "stream"_a = sys.attr("stdout"), "force_report"_a = false);
 
     sequence_class.def("exec_seq",
                        &spu::runtime::Sequence::exec_seq,

@@ -17,9 +17,8 @@ def source_random(max_data_size: int, seed: int = 0, dtype: streampu._ext.dtype 
     Raises:
         TypeError: if dtype is not a valid dtype
     """
-    if not isinstance(dtype, streampu._ext.dtype):
-        msg = f"type '{type(dtype)}' does not name an StreamPU datatype."
-        raise TypeError(msg)
+    streampu._ext.dtype.throw_if_invalid(dtype)
+
     class_name = f"Source_random_{str(dtype)}"
     class_type = getattr(streampu._ext.src, class_name)
     return class_type(max_data_size, seed)
@@ -47,9 +46,7 @@ def source_user_binary(
     Raises:
         TypeError: if dtype is not a valid dtype
     """
-    if not isinstance(dtype, streampu._ext.dtype):
-        msg = f"type '{type(dtype)}' does not name an StreamPU datatype."
-        raise TypeError(msg)
+    streampu._ext.dtype.throw_if_invalid(dtype)
     class_name = f"Source_user_binary_{str(dtype)}"
     class_type = getattr(streampu._ext.src, class_name)
     return class_type(max_data_size, filename, auto_reset, fifo_mode)
@@ -72,14 +69,12 @@ def source_user(
         dtype (streampu._ext.dtype): Data type
 
     Returns:
-        out (Module): a new Source_user_binary
+        out (Module): a new Source_user
 
     Raises:
         TypeError: if dtype is not a valid dtype
     """
-    if not isinstance(dtype, streampu._ext.dtype):
-        msg = f"type '{type(dtype)}' does not name an StreamPU datatype."
-        raise TypeError(msg)
+    streampu._ext.dtype.throw_if_invalid(dtype)
     class_name = f"Source_user_{str(dtype)}"
     class_type = getattr(streampu._ext.src, class_name)
     return class_type(max_data_size, filename, auto_reset, start_idx)

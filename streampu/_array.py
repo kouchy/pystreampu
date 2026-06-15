@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Provides some array factories."""
 
-
 from __future__ import annotations
 
 import numpy as np
@@ -35,6 +34,8 @@ def array(data: SocketLike, n_frames: int = 1, dtype: _ext.dtype = None) -> _ext
         :meth:`streampu.zeros`, :meth:`streampu.ones`, :meth:`streampu.arange`
     """
     if isinstance(data, _ext.core.Socket):  # socket case : do nothing
+        if data.dtype.name != dtype.name:
+            return dtype(data)
         return data
 
     if not isinstance(data, np.ndarray):

@@ -53,7 +53,15 @@ wrap_fmtflags(py::module_& m)
       .value("showpos", pyspu::fmtflags::showpos)
       .value("skipws", pyspu::fmtflags::skipws)
       .value("unitbuf", pyspu::fmtflags::unitbuf)
-      .value("uppercase", pyspu::fmtflags::uppercase);
+            .value("uppercase", pyspu::fmtflags::uppercase)
+            .def("__or__", [](const fmtflags a, const fmtflags b) { return a | b; }, py::is_operator())
+            .def(
+                "__and__",
+                [](const fmtflags a, const fmtflags b)
+                {
+                        return static_cast<fmtflags>(static_cast<std::ios_base::fmtflags>(a) & static_cast<std::ios_base::fmtflags>(b));
+                },
+                py::is_operator());
 }
 } // namespace wrapper
 } // namespace pyspu

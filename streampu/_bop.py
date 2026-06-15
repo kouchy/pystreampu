@@ -7,9 +7,15 @@ Elementwise binary operations are such that `z[i] = bop(s_0[i], s_1[i])`.
 
 from enum import Enum, auto
 
+import numpy as np
+
 import streampu._ext
 from streampu import _context_manager, array
-from streampu._ext import dtype, int8, int32
+from streampu._ext import (
+    dtype,
+    int8,
+    int32,
+)
 from streampu._ext.core import Module, Socket
 from streampu._typing import SocketLike
 
@@ -42,6 +48,40 @@ class BType(Enum):
         return self.name.lower()
 
 
+def _best_dtype(x) -> dtype:
+    """Find the best StreamPU dtype for a given input.
+
+    Args:
+        x (SocketLike): input data
+
+    Returns:
+        dtype: best StreamPU dtype for the input data
+    """
+    if isinstance(x, Socket):
+        return x.dtype
+
+    if isinstance(x, np.ndarray):
+        out = dtype.of(x.dtype.name)
+        if out is None:
+            raise TypeError(f"no compatible StreamPU dtype for numpy dtype '{x.dtype}'.")
+        return out
+
+    # scalar case : use numpy to find the best type
+    out = dtype.of(np.array(x).dtype.name)
+    if out is None:
+        raise TypeError(f"no compatible StreamPU dtype for scalar of type '{type(x)}'.")
+    return out
+
+
+def _best_common_dtype(dtype0: dtype, dtype1: dtype) -> dtype:
+    """Find the best common StreamPU dtype using NumPy promotion rules."""
+    promoted = np.result_type(np.dtype(dtype0.name), np.dtype(dtype1.name))
+    out = dtype.of(promoted.name)
+    if out is None:
+        raise TypeError(f"no compatible StreamPU dtype for promoted dtype '{promoted}'.")
+    return out
+
+
 def _bop_factory(
     n_in0: int,
     n_in1: int,
@@ -65,13 +105,8 @@ def _bop_factory(
         TypeError: if input_type or output_type are not dtypes
         AttributeError: if no binary operator can be built
     """
-    if not issubclass(type(input_type), dtype):
-        ex_msg = f"type '{type(input_type)}' does not name an StreamPU dtype."
-        raise TypeError(ex_msg)
-
-    if not issubclass(type(output_type), dtype):
-        ex_msg = f"type '{type(output_type)}' does not name an StreamPU dtype."
-        raise TypeError(ex_msg)
+    dtype.throw_if_invalid(input_type)
+    dtype.throw_if_invalid(output_type)
 
     name = f"Binaryop_{str(bop_type)}_{input_type.name}_{output_type.name}"
 
@@ -110,7 +145,7 @@ def bop(
 
     s_1 = array(s_1, dtype=s_0.dtype)
 
-    if fwd:
+    if fwd or rev:
         s = s_1
         s_1 = s_0
         s_0 = s
@@ -130,238 +165,267 @@ def bop(
     if fwd:
         _context_manager.store_task(the_bop.performf)
         the_bop.performf(s_0, s_1)
+        s_1._mrv = the_bop.performf.fwd
         return s_1
 
     _context_manager.store_task(the_bop.perform)
-    if rev:
-        return the_bop.perform(s_1, s_0)
 
     return the_bop.perform(s_0, s_1)
 
 
-def add(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def add(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Add two sockets componentwise.
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype (dtype): dtype of the output socket
 
     Returns:
         out (Socket): out[i] = s_0[i] + s_1[i]
     """
-    return bop(BType.ADD, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.ADD, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def sub(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def sub(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Substract two sockets componentwise.
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype (dtype): dtype of the output socket
 
     Returns:
         out (Socket): z[i] = s_0[i] - s_1[i]
     """
-    return bop(BType.SUB, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.SUB, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def mul(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def mul(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Multiply two sockets componentwise.
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype(dtype): dtype of the output socket
 
     Returns:
         out (Socket): z[i] = s_0[i] * s_1[i]
     """
-    return bop(BType.MUL, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.MUL, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def div(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def div(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Divide two sockets componentwise.
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype(dtype): dtype of the output socket
 
     Returns:
         out (Socket): z[i] = s_0[i] / s_1[i]
     """
-    return bop(BType.DIV, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.DIV, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def greater_equal(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def greater_equal(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Compare two sockets componentwise (>=).
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype(dtype): dtype of the output socket
 
     Returns:
         out (Socket): z[i] = (s_0[i] >= s_1[i])
     """
-    return bop(BType.GE, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.GE, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def greater(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def greater(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Compare two sockets componentwise (>).
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype(dtype): dtype of the output socket
 
     Returns:
         out (Socket): z[i] = (s_0[i] > s_1[i])
     """
-    return bop(BType.GT, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.GT, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def equal(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def equal(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Compare two sockets componentwise (==).
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype(dtype): dtype of the output socket
 
     Returns:
         out (Socket): z[i] = (s_0[i] == s_1[i])
     """
-    return bop(BType.EQ, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.EQ, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def not_equal(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def not_equal(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Compare two sockets componentwise (!=).
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype(dtype): dtype of the output socket
 
     Returns:
         out (Socket): z[i] = (s_0[i] != s_1[i])
     """
-    return bop(BType.NEQ, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.NE, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def less_equal(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def less_equal(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Compare two sockets componentwise (<=).
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype(dtype): dtype of the output socket
 
     Returns:
         out (Socket): z[i] = (s_0[i] <= s_1[i])
     """
-    return bop(BType.LE, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.LE, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def less(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def less(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Compare two sockets componentwise (<).
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype(dtype): dtype of the output socket
 
     Returns:
         out (Socket): z[i] = (s_0[i] < s_1[i])
     """
-    return bop(BType.LT, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.LT, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def bitwise_and(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def bitwise_and(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Compute bitwise AND between two sockets componentwise.
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype(dtype): dtype of the output socket
 
     Returns:
         out(Socket): z[i] = (s_0[i] & s_1[i])
     """
-    return bop(BType.AND, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.AND, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def bitwise_or(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def bitwise_or(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Compute bitwise OR between two sockets componentwise.
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype(dtype): dtype of the output socket
 
     Returns:
         out(Socket): z[i] = (s_0[i] | s_1[i])
     """
-    return bop(BType.OR, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.OR, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def bitwise_xor(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def bitwise_xor(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Compute bitwise XOR between two sockets componentwise.
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype(dtype): dtype of the output socket
 
     Returns:
         out(Socket): out[i] = (s_0[i] ^ s_1[i])
     """
-    return bop(BType.XOR, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.XOR, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def min(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def min(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Compute componentwise min.
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype(dtype): dtype of the output socket
 
     Returns:
         out(Socket): out[i] = min(s_0[i], s_1[i])
     """
-    return bop(BType.MIN, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.MIN, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
-def max(s_0: Socket, s_1: Socket, output_dtype: dtype = None) -> Socket:
+def max(s_0: SocketLike, s_1: SocketLike, output_dtype: dtype = None) -> Socket:
     """
     Compute componentwise max.
 
     Args:
-        s_0 (Socket): sockets to process
-        s_1 (Socket): sockets to process
+        s_0 (SocketLike): sockets to process
+        s_1 (SocketLike): sockets to process
         output_dtype(dtype): dtype of the output socket
 
     Returns:
         out(Socket): out[i] = max(s_0[i], s_1[i])
     """
-    return bop(BType.MAX, s_0, s_1, output_dtype=output_dtype)
+    if not output_dtype:
+        output_dtype = _best_common_dtype(_best_dtype(s_0), _best_dtype(s_1))
+    return bop(BType.MAX, array(s_0, dtype=output_dtype), array(s_1, dtype=output_dtype), output_dtype=output_dtype)
 
 
 __all__ = [

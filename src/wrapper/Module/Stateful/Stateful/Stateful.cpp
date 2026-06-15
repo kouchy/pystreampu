@@ -9,19 +9,18 @@ using namespace spu::module;
 void
 pyspu::wrapper::wrap_stateful(py::handle scope)
 {
-    auto stateful_class = py::class_<spu::module::Stateful, spu::module::Module, spu::module::Stateful_Publicist>(scope,"Stateful",
-                                                                                        R"pbdoc(
-        Stateful modules are modules that cannot be cloned due to internal state
-        )pbdoc");
-    stateful_class.def(py::init<>());
-    stateful_class.def(py::init<const Stateful&>());
+    auto stateful_class = py::class_<spu::module::Stateful, spu::module::Module>(scope, "Stateful", R"pbdoc(Stateful modules are modules that cannot be cloned due to internal state.)pbdoc");
 
+    auto stateful_core_class = py::class_<spu::module::Stateful_core, spu::module::Stateful>(scope, "Stateful_core", R"pbdoc(Stateful_core is the class that will contain the 'core' of python stateful modules. It inherits from Stateful, and implements the clone method by cloning the python state of the Module's body as well as its own state.)pbdoc");
 
-    stateful_class.def_property("n_frames_per_wave", &Stateful::get_n_frames_per_wave, &Stateful_Publicist::set_n_frames_per_wave);
+    stateful_core_class.def(py::init<>());
+    stateful_core_class.def(py::init<const Stateful_core&>());
 
-    stateful_class.def(
+    stateful_core_class.def_property("n_frames_per_wave", &Stateful::get_n_frames_per_wave, &Stateful_core::set_n_frames_per_wave);
+
+    stateful_core_class.def(
       "create_socket_in",
-      [](Stateful_Publicist& mdl,
+      [](Stateful_core& mdl,
          spu::runtime::Task& task,
          const std::string& name,
          const size_t n_elmts,
@@ -35,9 +34,9 @@ pyspu::wrapper::wrap_stateful(py::handle scope)
         Create a new input socket to a task.
     )pbdoc");
 
-    stateful_class.def(
+    stateful_core_class.def(
       "create_socket_out",
-      [](Stateful_Publicist& mdl,
+      [](Stateful_core& mdl,
          spu::runtime::Task& task,
          const std::string& name,
          const size_t n_elmts,
@@ -51,9 +50,9 @@ pyspu::wrapper::wrap_stateful(py::handle scope)
         Create a new output socket to a task.
     )pbdoc");
 
-    stateful_class.def(
+    stateful_core_class.def(
       "create_socket_fwd",
-      [](Stateful_Publicist& mdl,
+      [](Stateful_core& mdl,
          spu::runtime::Task& task,
          const std::string& name,
          const size_t n_elmts,
@@ -67,9 +66,9 @@ pyspu::wrapper::wrap_stateful(py::handle scope)
         Create a new forward socket to a task.
     )pbdoc");
 
-    stateful_class.def(
+    stateful_core_class.def(
       "create_task",
-      [](Stateful_Publicist& mdl, const std::string& name) { return &mdl.create_task(name); },
+      [](Stateful_core& mdl, const std::string& name) { return &mdl.create_task(name); },
       "name"_a,
       R"pbdoc(
         Create a new task.
@@ -83,8 +82,14 @@ pyspu::wrapper::wrap_stateful(py::handle scope)
     )pbdoc",
       py::return_value_policy::reference);
 
-    stateful_class.def("create_codelet", &Stateful_Publicist::create_codelet);
+    stateful_core_class.def("create_codelet", &Stateful_core::create_codelet);
 
-    stateful_class.def("deep_copy", &Stateful_Publicist::deep_copy);
-
+    stateful_core_class.def("clone", [](const Stateful_core& self) -> py::object {
+        py::function py_clone = py::get_override(&self, "clone");
+        if (py_clone) {
+            return py_clone();                          // py::object complet ✓
+        }
+        // fallback : instance C++ pure
+        return py::cast(self.Stateful::clone());
+    }, py::return_value_policy::take_ownership);
 }

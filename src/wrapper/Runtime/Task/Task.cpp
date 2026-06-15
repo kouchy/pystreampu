@@ -152,4 +152,5 @@ pyspu::wrapper::wrap_task(py::handle scope)
     py_task.def("cancel_waiting",[](spu::runtime::Task& self){
         throw spu::tools::waiting_canceled(__FILE__, __LINE__, __func__);
     });
+    py_task.def_property("replicable", &spu::runtime::Task::is_replicable, &spu::runtime::Task::set_replicability);
 };

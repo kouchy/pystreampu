@@ -42,6 +42,24 @@ def _dtype_call(self: dtype, data: Union[Socket, np.array]) -> Socket:
 
 dtype.__call__ = _dtype_call
 
+
+def _throw_if_invalid(obj):
+    """Check if the input is a valid dtype.
+
+    Args:
+        obj: An object to be checked
+
+    Raises:
+        TypeError: If the input is not a valid dtype.
+    """
+    if not issubclass(type(obj), dtype):
+        msg = f"type '{type(obj)}' does not name a StreamPU datatype."
+        raise TypeError(msg)
+
+
+dtype.throw_if_invalid = staticmethod(_throw_if_invalid)
+
+
 __all__ = [
     "dtype",
     "uint8",

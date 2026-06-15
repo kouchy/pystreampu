@@ -5,21 +5,17 @@ repo_url: https://gitlab.inria.fr/fec/pystreampu
 nav:
   - Home: index.md
   - Setup: install.md
+  - Socket operations: socket_operations.md
   - Getting started:
-    - First steps: first_steps.ipynb
+    - First steps: first_steps.md
     - Module, Task and Socket:
-      - Module: module.ipynb
-      - Task: task.ipynb
-      - Socket: socket.ipynb
-    - Back to the first steps: back_to_first_steps.ipynb
+      - Module: module.md
+      - Task: task.md
+      - Socket: socket.md
+    - Back to the first steps: back_to_first_steps.md
 
 plugins:
   - search
-  - mkdocs-jupyter:
-      execute: True
-      remove_tag_config:
-        remove_input_tags:
-          - hide_code
 
 # - mkdocstrings
 

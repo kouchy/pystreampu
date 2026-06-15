@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Python implementation of StreamPU Do While loop test."""
+
 import argparse
 import time
 

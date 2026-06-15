@@ -16,9 +16,8 @@ def sink_no(max_data_size: int, dtype: streampu._ext.dtype = int16):
     Raises:
         TypeError: if dtype is not a valid dtype
     """
-    if not isinstance(dtype, streampu._ext.dtype):
-        msg = f"type '{type(dtype)}' does not name an StreamPU datatype."
-        raise TypeError(msg)
+    streampu._ext.dtype.throw_if_invalid(dtype)
+
     class_name = f"Sink_NO_{str(dtype)}"
     class_type = getattr(streampu._ext.snk, class_name)
     return class_type(max_data_size)
@@ -38,9 +37,8 @@ def sink_user_binary(max_data_size: int, filename: str, dtype: streampu._ext.dty
     Raises:
         TypeError: if dtype is not a valid dtype
     """
-    if not isinstance(dtype, streampu._ext.dtype):
-        msg = f"type '{type(dtype)}' does not name an StreamPU datatype."
-        raise TypeError(msg)
+    streampu._ext.dtype.throw_if_invalid(dtype)
+
     class_name = f"Sink_user_binary_{str(dtype)}"
     class_type = getattr(streampu._ext.snk, class_name)
     return class_type(max_data_size, filename)

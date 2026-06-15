@@ -33,9 +33,24 @@ file(GLOB_RECURSE HEADER_FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/*)
 
 #add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/pybind11/)
 set(PYBIND11_NEWPYTHON ON)
-find_package(pybind11 CONFIG 3.0 REQUIRED)
+find_package(pybind11 CONFIG 3.0.4 REQUIRED)
 # `pybind11_add_module` is a wrapper of the CMake `add_library` function
 pybind11_add_module(_ext MODULE ${CMAKE_CURRENT_SOURCE_DIR}/src/ext.cpp ${SRC_FILES} ${HEADER_FILES})
+
+# Détection free-threaded
+execute_process(
+    COMMAND "${Python_EXECUTABLE}" -c
+        "import sysconfig; print(sysconfig.get_config_var('Py_GIL_DISABLED') or 0)"
+    OUTPUT_VARIABLE PY_GIL_DISABLED
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+if(PY_GIL_DISABLED EQUAL 1)
+    message(STATUS "Python free-threaded détecté — activation de Py_GIL_DISABLED")
+    set_target_properties(_ext PROPERTIES
+        COMPILE_DEFINITIONS "Py_GIL_DISABLED"
+    )
+endif()
 
 # set(pybind11_INCLUDE_DIRS)
 if (NOT INCLUDE_SPU_LIB)

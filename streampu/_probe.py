@@ -34,9 +34,8 @@ def probe_value(
     Raises:
         TypeError: if dtype input is not a valid dtype
     """
-    if not isinstance(dtype, streampu._ext.dtype):
-        msg = f"type '{type(dtype)}' does not name an StreamPU datatype."
-        raise TypeError(msg)
+    streampu._ext.dtype.throw_if_invalid(dtype)
+
     name = f"Probe_value_{str(dtype.name)}"
     prb_class = getattr(streampu._ext.prb, name)
     return prb_class(size, col_name, reporter)

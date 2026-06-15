@@ -47,13 +47,8 @@ def _red_factory(
         TypeError: if input_type or output_type are not dtypes
         AttributeError: if no Reducer can be built
     """
-    if not issubclass(type(input_type), dtype):
-        ex_msg = f"type '{type(input_type)}' does not name an StreamPU dtype."
-        raise TypeError(ex_msg)
-
-    if not issubclass(type(output_type), dtype):
-        ex_msg = f"type '{type(output_type)}' does not name an StreamPU dtype."
-        raise TypeError(ex_msg)
+    dtype.throw_if_invalid(input_type)
+    dtype.throw_if_invalid(output_type)
 
     try:
         name = f"Reducer_{str(red_type)}_{input_type.name}_{output_type.name}"

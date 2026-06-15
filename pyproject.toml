@@ -1,8 +1,5 @@
 [build-system]
-requires = ["scikit-build-core",
-            "setuptools_scm",
-            "pybind11>=3.0.0"
-            ]
+requires = ["scikit-build-core", "setuptools_scm", "pybind11==3.0.4"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -15,12 +12,18 @@ readme = "README.md"
 dependencies = [
     "importlib_metadata",
     "numpy",
-    "pytest>=6.0"
+    "pybind11==3.0.4",
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
 tests = [
+  "pytest>=6.0",
+]
+dev = [
+  "flake8",
+  "isort",
+  "black",
   "pytest>=6.0",
 ]
 
@@ -71,3 +74,16 @@ profile = "black"
 
 [tool.black]
 line-length = 120
+
+[tool.coverage.run]
+omit = [
+  "streampu/_version.py",
+  "streampu/_plugins.py",
+
+]
+
+[tool.coverage.report]
+omit = [
+  "streampu/_version.py",
+  "streampu/_plugins.py",
+]

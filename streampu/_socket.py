@@ -104,12 +104,12 @@ def _bind_(self: Socket, s_out: SocketLike, priority: int = -1, raw_data: bool =
 Socket.bind = _bind_
 
 
-def _setitem(self: Socket, key: Union[int, slice], data: SocketLike) -> Socket:
+def _setitem(self: Socket, key: Union[int, slice, list], data: SocketLike) -> Socket:
     """Write data at place key inside a socket.
 
     Args:
         self (Socket): input data
-        key (int|slice): place to write the new data
+        key (int|slice|list): place to write the new data
         data (SocketLike): new data
     """
     slc = None
@@ -121,24 +121,29 @@ def _setitem(self: Socket, key: Union[int, slice], data: SocketLike) -> Socket:
     if isinstance(key, int):
         slc = Slicer(self, key)
 
+    if isinstance(key, list):
+        slc = Slicer(self, np.array(key))
+
     slc.n_frames = self.task.module.n_frames
     if hasattr(data, "__len__") and len(data) > 1:
         slc.write(self, data)
+        self._mrv = slc.write.x
         _context_manager.store_task(slc.write)
     else:
         slc.write_one(self, data)
+        self._mrv = slc.write_one.x
         _context_manager.store_task(slc.write_one)
 
 
 Socket.__setitem__ = _setitem
 
 
-def _getitem(self: Socket, key: Union[slice, int]) -> Socket:
+def _getitem(self: Socket, key: Union[slice, int, list]) -> Socket:
     """Read data at place key inside a socket.
 
     Args:
         self (Socket): input data
-        key (int|slice): place to write the new data
+        key (int|slice|list): place to write the new data
 
     Returns:
         out (Socket): self[key]
@@ -152,11 +157,16 @@ def _getitem(self: Socket, key: Union[slice, int]) -> Socket:
     if isinstance(key, int):
         slc = Slicer(self, key)
 
+    if isinstance(key, list):
+        slc = Slicer(self, np.array(key))
+
     slc.n_frames = self.task.module.n_frames
 
     _context_manager.store_task(slc.read)
 
-    return slc.read(self)
+    out = slc.read(self)
+    self._mrv = slc.read.x
+    return out
 
 
 Socket.__getitem__ = _getitem

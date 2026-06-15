@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import List, Union
 
 from streampu._ext import exceptions
-from streampu._ext.core import Socket, _Sequence
+from streampu._ext.core import Socket, Task, _Sequence
 from streampu._ext.set import Set
 
 
@@ -17,11 +17,21 @@ def _unique(in_list: list):
 
 
 def _get_firsts(s: Socket):
-    def visit(s: Socket, visited: List[Socket]):
+    def visit(s: Socket, visited: List[Task]):
         tsk = s.task
         visited.append(tsk)
         tsk_forwards = tsk.forwards
-        if len(tsk.inputs) == 0 and len(tsk_forwards) == 0 and not tsk.is_bound():
+        all_fwd_are_outputs = True
+        for fwd in tsk_forwards:
+            try:
+                bnd_sck = fwd.get_bound_socket()
+                if bnd_sck is not None:
+                    all_fwd_are_outputs = False
+                    break
+            except Exception:
+                pass
+
+        if len(tsk.inputs) == 0 and not tsk.is_bound() and all_fwd_are_outputs:
             return [tsk]
 
         out = []
@@ -84,7 +94,7 @@ class Sequence(_Sequence):
     """Overlay of streampu._ext.core._Sequence."""
 
     def __init__(self, *args, **kwargs):
-        """Build a Pipeline.
+        """Build a Sequence.
 
         Args:
             *args: Variable length argument list.
@@ -109,6 +119,8 @@ class Sequence(_Sequence):
         if not isinstance(sockets, list):
             sockets = [sockets]
         for s_itm in sockets:
+            if hasattr(s_itm, "_mrv"):
+                s_itm = s_itm._mrv
             local_firsts = _get_firsts(s_itm)
             for first in local_firsts:
                 if first not in firsts:

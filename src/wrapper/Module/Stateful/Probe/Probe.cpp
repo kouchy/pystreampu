@@ -1,8 +1,10 @@
 #include "wrapper/Module/Stateful/Probe/Probe.hpp"
 
 #include "wrapper/Common/Tools/Type/Type.hpp"
+#include "wrapper/Common/Tools/Format/Format.hpp"
 #include "wrapper/Common/Tools/type_functions.h"
 #include "wrapper/Common/Tools/type_list.hpp"
+
 
 #include "wrapper/Module/Stateful/Probe/Latency/Probe_latency.hpp"
 #include "wrapper/Module/Stateful/Probe/Occurrence/Probe_occurrence.hpp"
@@ -37,7 +39,10 @@ pyspu::wrapper::wrap_probe(py::handle scope)
           // "col_name"_a, py::return_value_policy::take_ownership);
           probe_class.def("set_col_unit", &spu::module::Probe<T>::set_col_unit);
           probe_class.def("set_col_buff_size", &spu::module::Probe<T>::set_col_buff_size);
-          probe_class.def("set_col_fmtflags", &spu::module::Probe<T>::set_col_fmtflags);
+          probe_class.def(
+            "set_col_fmtflags",
+            [](spu::module::Probe<T>& self, const pyspu::fmtflags ff)
+            { self.set_col_fmtflags(static_cast<std::ios_base::fmtflags>(ff)); });
           probe_class.def("set_col_prec", &spu::module::Probe<T>::set_col_prec);
           probe_class.def("set_col_size", &spu::module::Probe<T>::set_col_size);
           probe_class.def("register_reporter", &spu::module::Probe<T>::register_reporter, py::keep_alive<1, 2>());
