@@ -27,7 +27,16 @@ void
 pyspu::wrapper::wrap_socket(py::handle scope)
 {
     py::class_<Socket, spu::tools::Interface_reset, spu::runtime::Socket_Publicist> py_socket(
-      scope, "Socket", py::buffer_protocol(), py::dynamic_attr());
+      scope, "Socket", py::buffer_protocol(), py::dynamic_attr(), R"pbdoc(
+        Data exchanged between tasks.
+
+        A socket belongs to a task and has a name, a data type (`dtype`), a number of
+        elements and a direction (input, output or forward). Its data is a 2D array with
+        one row per frame, accessible without copy through `numpy`.
+
+        Python operators (`+`, `<`, `&`, `x[::2]`...) can be used on sockets: each one
+        creates a module, binds it to its operands and executes it.
+    )pbdoc");
 
     py::enum_<socket_t>(py_socket, "directions", "Enumeration of socket directions")
       .value("IN", socket_t::SIN, "Input socket")
@@ -77,18 +86,19 @@ pyspu::wrapper::wrap_socket(py::handle scope)
                             { (size_t)self.get_datatype_size() * n_col, (size_t)self.get_datatype_size() },
                             self.get_type() == socket_t::SIN),
             buffer_handle);
-      });
+      },
+      "NumPy view (without copy) of the frames of the current wave (`n_frames_per_wave` rows).");
 
     py_socket.def_property_readonly("task", &spu::runtime::Socket::get_task, "Task owning the socket.");
-    py_socket.def_property_readonly("n_elmts", &spu::runtime::Socket::get_n_elmts, "Number of elements per `n_frames`");
-    py_socket.def("get_bound_sockets", &spu::runtime::Socket::get_bound_sockets, "Sockets to wich the socket is bound (for output sockets only).");
+    py_socket.def_property_readonly("n_elmts", &spu::runtime::Socket::get_n_elmts, "Total number of elements, for all the frames.");
+    py_socket.def("get_bound_sockets", &spu::runtime::Socket::get_bound_sockets, "Return the sockets bound to this socket (for output sockets only).");
     py_socket.def_property_readonly(
       "dtype",
       [](const spu::runtime::Socket& self) { return pyspu::dtype::get(self.get_datatype_string()); },
       "Data type.");
     py_socket.def("get_bound_socket",
     [](const spu::runtime::Socket& self) { return &self.get_bound_socket(); },
-    "Socket bound to self (for input sockets only).", py::return_value_policy::reference);
+    "Return the socket this socket is bound to (for input sockets only).", py::return_value_policy::reference);
 
     py_socket.def(
       "has_data",
@@ -111,7 +121,7 @@ pyspu::wrapper::wrap_socket(py::handle scope)
           py::array array = py::cast(self);
           return array;
       },
-      "Numpy array view of the socket (copy-less).");
+      "NumPy view of the data of the socket (no copy), with one row per frame.");
 
     py_socket.def("__bool__",
                   [](const spu::runtime::Socket& sckt)
@@ -152,7 +162,12 @@ pyspu::wrapper::wrap_socket(py::handle scope)
                         throw spu::tools::unimplemented_error(message.str());
                         }
                   });
-    py_socket.def("unbind", &spu::runtime::Socket::unbind);
+    py_socket.def("unbind", &spu::runtime::Socket::unbind, "s_out"_a, R"pbdoc(
+        Unbind the socket from the socket `s_out`.
+
+        Args:
+            s_out (Socket): the output or forward socket this socket is bound to
+    )pbdoc");
     py_socket.def(
       "_bind",
       [](spu::runtime::Socket& self, spu::runtime::Socket& s_out, const int priority) { self.bind(s_out, priority); },
@@ -206,6 +221,6 @@ pyspu::wrapper::wrap_socket(py::handle scope)
       },
       "Binds the socket to the numpy array 'array' data.",
       "array"_a);
-    py_socket.def_property_readonly("name", &spu::runtime::Socket::get_name);
-    py_socket.def_property_readonly("direction", &spu::runtime::Socket::get_type, "Direction of the socket");
+    py_socket.def_property_readonly("name", &spu::runtime::Socket::get_name, "Name of the socket in its task.");
+    py_socket.def_property_readonly("direction", &spu::runtime::Socket::get_type, "Direction of the socket (`Socket.directions.IN`, `OUT` or `FWD`).");
 };

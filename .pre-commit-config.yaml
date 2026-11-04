@@ -1,0 +1,33 @@
+# Hooks run on the staged files at each `git commit`, with the same tools and settings as
+# the CI (pyproject.toml and .flake8).
+#
+# Setup, in an environment with the dev dependencies:
+#     pip install -e '.[dev]'
+#     pre-commit install
+# Run on all the files: pre-commit run --all-files
+#
+# The hooks use the isort, black and flake8 installed in the active environment
+# (language: system), so that their versions are the ones of the dev dependencies.
+repos:
+  - repo: local
+    hooks:
+      - id: isort
+        name: isort
+        entry: isort
+        language: system
+        types_or: [python, pyi]
+        files: ^(streampu|examples)/
+      - id: black
+        name: black
+        entry: black
+        language: system
+        types_or: [python, pyi]
+        files: ^(streampu|examples)/
+      - id: flake8
+        name: flake8
+        entry: flake8
+        language: system
+        # Only .py files, as in the CI: the type stubs (.pyi) follow the stub style of black
+        # (one blank line, forward references), which flake8 does not accept
+        files: ^(streampu|examples)/.*\.py$
+        exclude: ^streampu/_ext/

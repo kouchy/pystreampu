@@ -1,0 +1,26 @@
+% Calls build the graph, a sequence replays it (docs/concepts.md). Build: scripts/build_figures.sh concepts_replay
+\documentclass{standalone}
+\usepackage{ifthen}
+\usepackage{tikz}
+\usetikzlibrary{streampu}
+
+\begin{document}
+  \begin{tikzpicture}[background rectangle/.style={thick, draw=gray!60, fill=white, fill opacity=1.0, rounded corners=2px}, show background rectangle]
+    % 1. description of the graph
+    \node[align=left, anchor=west, font=\small] (code) at (-1.0, 0.0) {%
+      \textbf{1. Describe the graph}\\[0.25cm]
+      \texttt{d, \_ = src.generate()}\\
+      {\footnotesize\color{gray} executed once}\\[0.15cm]
+      \texttt{out = inc.increment(d)}\\
+      {\footnotesize\color{gray} bound to generate, executed once}};
+
+    % 2. replay by a sequence
+    \task [right=3.8cm of code]  {t1}  {}  {generate}  {0} {1} {0} {};
+    \task [right=1.2cm of t1]    {t2}  {}  {increment} {1} {1} {0} {};
+    \draw [bind, thick] (t1_so1) -- (t2_si1);
+    \sequence {"t1","t2"} {s1} {2. Replay it: \texttt{seq.exec\_n\_times(n)}} {1};
+    \draw [->, >=latex, thick, Paired-11] (s1.north east) ++(-0.3, -0.15) arc[start angle=40, end angle=140, radius=1.0cm];
+
+    \draw [->, >=latex, thick] (code.east) ++(0.2, 0) -- node[above, font=\footnotesize] {\texttt{spu.Sequence(out)}} ++(2.8, 0);
+  \end{tikzpicture}
+\end{document}

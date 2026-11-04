@@ -6,7 +6,7 @@ using namespace py::literals;
 void
 pyspu::wrapper::wrap_probe_latency(py::handle scope)
 {
-    py::class_<spu::module::Probe_latency, spu::module::Probe<uint8_t>>(scope, "Probe_latency")
+    py::class_<spu::module::Probe_latency, spu::module::Probe<uint8_t>>(scope, "Probe_latency", "Probe that reports the time elapsed since its previous execution, in microseconds.")
       .def(py::init<const std::string&, spu::tools::Reporter_probe*>(),
            "col_name"_a,
            "reporter"_a = nullptr,

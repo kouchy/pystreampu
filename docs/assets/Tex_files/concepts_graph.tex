@@ -1,0 +1,29 @@
+% Modules, tasks, sockets and bindings (docs/concepts.md). Build: scripts/build_figures.sh concepts_graph
+\documentclass{standalone}
+\usepackage{ifthen}
+\usepackage{tikz}
+\usetikzlibrary{streampu}
+
+\begin{document}
+  \begin{tikzpicture}[background rectangle/.style={thick, draw=gray!60, fill=white, fill opacity=1.0, rounded corners=2px}, show background rectangle]
+    % tasks:                   id    coords      label       sin sout sfwd attributes
+    \task                      {t1}  {0.0, 0.0}  {generate}  {0} {2}  {0}  {};
+    \task [right=2.8cm of t1]  {t2}  {}          {increment} {1} {1}  {0}  {};
+
+    % modules
+    \module {"t1"} {m1} {Source\_random};
+    \module {"t2"} {m2} {Incrementer};
+
+    % socket names
+    \node[soutlbl, anchor=south west] at (t1_so1.north east) {out\_data};
+    \node[soutlbl, anchor=north west] at (t1_so2.south east) {out\_count};
+    \node[sinlbl,  anchor=south east] at (t2_si1.north west) {in};
+    \node[soutlbl, anchor=south west] at (t2_so1.north east) {out};
+
+    % binding
+    \draw [bind, thick] (t1_so1) -- (t2_si1);
+
+    % legend
+    \legend[shift={(-2.0,-4.4)}]
+  \end{tikzpicture}
+\end{document}

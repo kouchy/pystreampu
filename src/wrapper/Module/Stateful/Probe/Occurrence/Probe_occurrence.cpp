@@ -6,7 +6,7 @@ using namespace py::literals;
 void
 pyspu::wrapper::wrap_probe_occurrence(py::handle scope)
 {
-    py::class_<spu::module::Probe_occurrence, spu::module::Probe<uint8_t>>(scope, "Probe_occurrence")
+    py::class_<spu::module::Probe_occurrence, spu::module::Probe<uint8_t>>(scope, "Probe_occurrence", "Probe that reports the number of times it has been executed.")
       .def(py::init<const std::string&, spu::tools::Reporter_probe*>(),
            "col_name"_a,
            "reporter"_a = nullptr,

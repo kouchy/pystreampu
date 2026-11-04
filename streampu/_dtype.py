@@ -47,7 +47,7 @@ def _throw_if_invalid(obj):
     """Check if the input is a valid dtype.
 
     Args:
-        obj: An object to be checked
+        obj (Any): An object to be checked
 
     Raises:
         TypeError: If the input is not a valid dtype.

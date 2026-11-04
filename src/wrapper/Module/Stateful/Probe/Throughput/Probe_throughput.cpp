@@ -6,7 +6,7 @@ using namespace py::literals;
 void
 pyspu::wrapper::wrap_probe_throughput(py::handle scope)
 {
-    py::class_<spu::module::Probe_throughput, spu::module::Probe<uint8_t>>(scope, "Probe_throughput")
+    py::class_<spu::module::Probe_throughput, spu::module::Probe<uint8_t>>(scope, "Probe_throughput", "Probe that reports a throughput: `data_size * n_frames / factor` per second (factor 2**20 by default, i.e. MB/s).")
       .def(py::init<const size_t, const std::string&, spu::tools::Reporter_probe*>(),
            "data_size"_a,
            "col_name"_a,

@@ -1,23 +1,63 @@
-site_name: StreamPU (Python API)
+site_name: pyStreamPU
+site_description: Python interface of the StreamPU DSEL for streaming applications
+site_url: https://rtajan.pages.bordeaux-inp.fr/pystreampu/
 
-repo_url: https://gitlab.inria.fr/fec/pystreampu
+repo_url: https://gitlab.bordeaux-inp.fr/rtajan/pystreampu
+repo_name: rtajan/pystreampu
+edit_uri: -/edit/develop/docs/
 
 nav:
   - Home: index.md
-  - Setup: install.md
-  - Socket operations: socket_operations.md
-  - Getting started:
-    - First steps: first_steps.md
-    - Module, Task and Socket:
-      - Module: module.md
-      - Task: task.md
-      - Socket: socket.md
-    - Back to the first steps: back_to_first_steps.md
+  - Installation: install.md
+  - Tutorial:
+      - First steps: tutorial/first_steps.md
+      - Going further: tutorial/going_further.md
+      - Building a Sequence: tutorial/sequence.md
+      - Running in parallel: tutorial/parallelism.md
+  - How-to guides:
+      - Working with sockets: guides/socket_operations.md
+      - Writing a module in Python: guides/python_module.md
+      - Writing a module in C++: guides/cpp_module.md
+      - Measuring performance: guides/profiling.md
+      - Visualizing a graph: guides/visualize.md
+      - Creating a plugin: guides/plugins.md
+  - Concepts: concepts.md
+  - API reference:
+      - reference/index.md
+      - Core classes: reference/core.md
+      - Sockets: reference/sockets.md
+      - Operators: reference/operators.md
+      - Modules: reference/modules.md
+      - Execution: reference/execution.md
+      - Tools: reference/tools.md
+  - Development: dev_guidelines.md
+
+# Drafts waiting to be merged into the concepts page, and LaTeX sources of figures
+exclude_docs: |
+  _drafts/
+  assets/Tex_files/
 
 plugins:
   - search
-
-# - mkdocstrings
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            # Read the stubs of streampu._ext (scripts/generate_stubs.sh), never import it
+            allow_inspection: false
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_source: false
+            separate_signature: true
+            show_signature_annotations: true
+            members_order: source
+            heading_level: 3
+            filters: ["!^_"]
+            merge_init_into_class: true
+            show_if_no_docstring: true
 
 theme:
   name: material
@@ -28,18 +68,27 @@ theme:
     - content.code.annotate
     - content.code.copy
     - content.tabs.link
-    - navigation.expand
     - navigation.footer
+    - navigation.indexes
+    - navigation.sections
 
 markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
   - pymdownx.highlight:
       use_pygments: true
       anchor_linenums: true
       line_spans: __span
   - pymdownx.inlinehilite
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
-
-
+  - toc:
+      permalink: true
+      toc_depth: 3
+      title: Contents

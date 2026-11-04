@@ -31,7 +31,7 @@ def test_minmax_3():
     z_min = spu.min(x, y, z)
     z_max = spu.max(x, y, z)
 
-    seq = spu.Sequence.from_socket([z_min, z_max])
+    seq = spu.Sequence([z_min, z_max])
     seq.exec_seq()
 
     assert np.array_equal(z_min.numpy, [[2, 1, 1, 0, 2]])

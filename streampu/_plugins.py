@@ -12,12 +12,16 @@ for _ in _plugins:
 
 
 def installed_plugins():
+    """Print the name and version of the installed StreamPU plugins.
+
+    Plugins are the packages that declare an entry point in the `streampu.plugins` group.
+    """
     plugin_list = [["Name", "Version"]]
     for k, v in plugins.items():
         if hasattr(v, "__version__"):
             plugin_list.append([k, v.__version__])
         elif hasattr(v, "version"):
-            plugin_list.append([k, v.__version__])
+            plugin_list.append([k, v.version])
         else:
             plugin_list.append([k, "?"])
     widths = [max(map(len, col)) for col in zip(*plugin_list)]
@@ -29,4 +33,4 @@ def installed_plugins():
     print("-" * (sum(widths) + 4))
 
 
-__all__ = [installed_plugins, plugins]
+__all__ = ["installed_plugins", "plugins"]

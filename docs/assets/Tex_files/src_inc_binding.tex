@@ -10,7 +10,7 @@
     %%%%%%%%%%%%%%%%%%
     %     options             id   coords      label                 sin sout sfwd attributes
     %     -------             --   ------      -----                 --- ---- ---- ----------
-    \task                     {t1} {-0.5, 0}   {generate\\($t_1$)} {0} {1}  {0}  {};
+    \task                     {t1} {-0.5, 0}   {generate\\($t_1$)} {0} {2}  {0}  {};
     \task [right=1.0cm of t1] {t2} {}          {increment\\($t_2$)}  {1} {1}  {0}  {};
 
     %%%%%%%%%%%%%%%%%%%%
@@ -26,7 +26,7 @@
     %%%%%%%%%%%%%%%%
     %     options start id path end id
     %     ------- -------- ---- ------
-    \draw [bind]  (t1_so1) --   (t2_si1);
+    \draw [bind, thick ,red]  (t1_so1) --   (t2_si1);
 
   \end{tikzpicture}
 \end{document}

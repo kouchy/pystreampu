@@ -43,7 +43,7 @@ def test_slice_sequence():
     xnp = x.numpy
     x[::2] = [10, 30, 50]
 
-    seq = Sequence.from_socket(x)
+    seq = Sequence(x)
     xnp[:] = [1, 2, 3, 4, 5]
     seq.exec_seq()
     _assert_numpy(x, [[10, 2, 30, 4, 50]])
@@ -53,7 +53,7 @@ def test_slice_sequence_read_write():
     x = array([1, 2, 3, 4, 5])
     xnp = x.numpy
     x[::2] = 2 * x[::2] + 1
-    seq = Sequence.from_socket(x)
+    seq = Sequence(x)
     xnp[:] = [1, 2, 3, 4, 5]
     seq.exec_seq()
     _assert_numpy(x, [[3, 2, 7, 4, 11]])
@@ -71,7 +71,7 @@ def test_slice_sequence_read_write_multiple_inputs(input_values, expected):
     xnp = x.numpy
 
     x[::2] = 2 * x[::2] + 1
-    seq = Sequence.from_socket(x)
+    seq = Sequence(x)
     xnp[:] = input_values
     seq.exec_seq()
 
@@ -92,7 +92,7 @@ def test_slice_sequence_read_write_multiple_inputs_inplace(input_values, expecte
     x[::2] *= 2
     x[::2] += 1
 
-    seq = Sequence.from_socket(x)
+    seq = Sequence(x)
     xnp[:] = input_values
     seq.exec_seq()
     _assert_numpy(x, expected)

@@ -10,13 +10,24 @@ using namespace pyspu::wrapper;
 void
 pyspu::wrapper::wrap_range(py::handle scope)
 {
-    auto range_class = py::class_<spu::module::Range, spu::module::Stateful>(scope, "Range");
+    auto range_class = py::class_<spu::module::Range, spu::module::Stateful>(scope, "Range", R"pbdoc(
+        Module that produces the values `start, start + step, ...` up to `stop` (excluded),
+        one per execution, like the Python `range`. It can be iterated in Python.
+    )pbdoc");
     range_class.def(py::init<int, int, int, pyspu::dtype>(),
                     "stop"_a,
                     "start"_a = 0,
                     "step"_a = 1,
                     "dtype"_a = pyspu::dtype::of<int32_t>(),
-                    R"pbdoc(Range:)pbdoc",
+                    R"pbdoc(
+        Build a range.
+
+        Args:
+            stop (int): end of the range (excluded)
+            start (int): first value
+            step (int): step between two values
+            dtype (dtype): data type of the output socket
+    )pbdoc",
                     py::return_value_policy::take_ownership);
     range_class.def(
       "__iter__",
@@ -25,16 +36,19 @@ pyspu::wrapper::wrap_range(py::handle scope)
           self.set_it(self.get_start());
           return self;
       },
-      py::keep_alive<0, 1>());
+      py::keep_alive<0, 1>(),
+      "Restart the range from `start` and return it.");
 
     range_class.def("__next__",
                     [](Range& self)
                     {
                         self.tasks[0]->exec();
                         return self.tasks[0]->sockets[0];
-                    });
+                    },
+                    "Execute the range once and return its output socket.");
 
-    range_class.def_property("throw_to_stop", &Range::get_throw_to_stop, &Range::set_throw_to_stop);
+    range_class.def_property("throw_to_stop", &Range::get_throw_to_stop, &Range::set_throw_to_stop,
+                             "If True, raise StopIteration at the end of the range (to stop a Python loop).");
 }
 
 Range ::Range(int stop, int start, int step, pyspu::dtype dtype)

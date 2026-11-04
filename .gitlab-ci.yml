@@ -15,7 +15,7 @@ variables:
     - python -m venv venv
     - . venv/bin/activate
     - python -m pip install --upgrade pip
-    - python -m pip install pybind11==3.0.1
+    - python -m pip install pybind11==3.0.4  # same version as pyproject.toml
 
 .python_cache: &python_cache
   key: ${CI_PROJECT_PATH}
@@ -29,6 +29,7 @@ stages:
   - tests
   - coverage-linux
   - build-wheels
+  - docs
   - deploy
 
 
@@ -70,6 +71,48 @@ tests:
     when: always
     reports:
       junit: report.xml
+
+
+# Run the examples of the documentation and compare their results with the outputs
+# written in the pages (the C++ module example is skipped: it is not built here)
+tutorial:
+  stage: tests
+  <<: *linux_aff3ct_base
+
+  cache:
+    <<: *python_cache
+
+  dependencies:
+    - build-linux
+
+  script:
+    - python scripts/check_tutorial.py
+
+# Check that the committed stubs of streampu._ext match the C++ bindings
+stubs:
+  stage: tests
+  <<: *linux_aff3ct_base
+  allow_failure: true
+
+  cache:
+    <<: *python_cache
+
+  dependencies:
+    - build-linux
+
+  script:
+    - python -m pip install pybind11-stubgen==2.5.5 black==26.5.1 isort==8.0.1  # same as pyproject.toml
+    - python -m pip list 2>/dev/null | grep -i -E "^(pybind11|pybind11-stubgen|black|isort) "
+    - ./scripts/generate_stubs.sh
+    - git diff -- streampu/_ext > stubs.diff
+    - test ! -s stubs.diff || (echo "Stubs are outdated, run scripts/generate_stubs.sh"; git diff --stat; head -n 80 stubs.diff; exit 1)
+
+  artifacts:
+    when: on_failure
+    name: stubs-diff
+    paths:
+      - stubs.diff
+    expire_in: 1 week
 
 
 coverage-python:
@@ -129,7 +172,7 @@ isort:
   <<: *linux_aff3ct_base
 
   script:
-    - python -m pip install isort
+    - python -m pip install isort==8.0.1
     - isort ./streampu --check-only
     - isort ./examples --check-only
 
@@ -138,7 +181,7 @@ black:
   <<: *linux_aff3ct_base
 
   script:
-    - python -m pip install black
+    - python -m pip install black==26.5.1
     - black --check ./streampu
     - black --check ./examples
 
@@ -206,6 +249,49 @@ testpypi:
 
   only:
     - tags
+
+
+# ---------------------------------------------------------------------------
+# Documentation (MkDocs + GitLab Pages)
+# ---------------------------------------------------------------------------
+# The documentation does not need the compiled package: mkdocstrings reads the Python
+# sources and the committed type stubs of streampu._ext (scripts/generate_stubs.sh), so
+# these jobs only install MkDocs. Keep the package list in sync with the `docs` extra of
+# pyproject.toml.
+.docs_base: &docs_base
+  image: $CI_BASE_IMAGE
+  tags:
+    - x86
+    - docker
+  before_script:
+    - python -m pip install --upgrade pip
+    - python -m pip install mkdocs mkdocs-material "mkdocstrings[python]" pymdown-extensions
+
+# Check that the documentation builds on merge requests
+docs:
+  stage: docs
+  <<: *docs_base
+  script:
+    - mkdocs build --strict --site-dir site
+  artifacts:
+    name: docs-preview
+    paths:
+      - site/
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Publish the documentation with GitLab Pages from the default branch
+pages:
+  stage: deploy
+  <<: *docs_base
+  script:
+    - mkdocs build --strict --site-dir public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 
 # macos:

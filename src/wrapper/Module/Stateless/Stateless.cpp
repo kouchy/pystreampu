@@ -13,8 +13,9 @@ pyspu::wrapper::wrap_stateless(py::handle scope)
                                                                                         R"pbdoc(
         Stateless modules are modules that can be cloned automatically.
         )pbdoc");
-    stateless_class.def(py::init<>());
-    stateless_class.def_property("n_frames_per_wave", &Stateless::get_n_frames_per_wave, &Stateless::set_n_frames_per_wave);
+    stateless_class.def(py::init<>(), "Build an empty module: add tasks with `create_task`.");
+    stateless_class.def_property("n_frames_per_wave", &Stateless::get_n_frames_per_wave, &Stateless::set_n_frames_per_wave,
+                                 "Number of frames processed by each call of the codelets (by default, all the frames).");
 
     stateless_class.def(
       "create_socket_in",
@@ -80,7 +81,17 @@ pyspu::wrapper::wrap_stateless(py::handle scope)
     )pbdoc",
       py::return_value_policy::reference);
 
-    stateless_class.def("create_codelet", &Stateless::create_codelet);
+    stateless_class.def("create_codelet", &Stateless::create_codelet, "task"_a, "codelet"_a, R"pbdoc(
+        Set the function executed by a task (its codelet).
+
+        The codelet is called as `codelet(module, task, frame_id)` and must return 0 on
+        success. Inside it, the data of the sockets are reached with `task.<name>.numpy`;
+        outputs must be written in place (`out[:] = ...`).
+
+        Args:
+            task (Task): a task created with `create_task`
+            codelet (Callable): the function to execute
+    )pbdoc");
 
     //stateless_class.def("deep_copy", &Stateless::deep_copy);
 

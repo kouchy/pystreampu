@@ -13,7 +13,13 @@ using namespace py::literals;
 void
 pyspu::wrapper::wrap_switcher(py::handle scope)
 {
-    auto switcher_class = py::class_<spu::module::Switcher, spu::module::Stateful>(scope, "Switcher");
+    auto switcher_class = py::class_<spu::module::Switcher, spu::module::Stateful>(scope, "Switcher", R"pbdoc(
+        Module that implements a conditional path in a sequence.
+
+        Its task `commute` sends its data to one of `n_data_sockets` paths, chosen by the
+        output of a controller; its task `select` takes the data of the path that was
+        executed and forwards it.
+    )pbdoc");
     switcher_class.def(
       py::init(
         [](const size_t n_data_sockets,
@@ -32,7 +38,16 @@ pyspu::wrapper::wrap_switcher(py::handle scope)
       "datatype_commute"_a,
       "n_elmts_select"_a,
       "datatype_select"_a,
-      R"pbdoc()pbdoc",
+      R"pbdoc(
+        Build a switcher whose commuted and selected data have different types.
+
+        Args:
+            n_data_sockets (int): number of paths
+            n_elmts_commute (int): number of elements of the commuted data
+            datatype_commute (dtype): data type of the commuted data
+            n_elmts_select (int): number of elements of the selected data
+            datatype_select (dtype): data type of the selected data
+    )pbdoc",
       py::return_value_policy::take_ownership);
 
     switcher_class.def(py::init(
@@ -44,6 +59,13 @@ pyspu::wrapper::wrap_switcher(py::handle scope)
                        "n_data_sockets"_a,
                        "n_elmts"_a,
                        "datatype"_a,
-                       R"pbdoc()pbdoc",
+                       R"pbdoc(
+        Build a switcher.
+
+        Args:
+            n_data_sockets (int): number of paths
+            n_elmts (int): number of elements of the data
+            datatype (dtype): data type of the data
+    )pbdoc",
                        py::return_value_policy::take_ownership);
 }

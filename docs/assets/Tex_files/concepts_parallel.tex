@@ -1,0 +1,37 @@
+% Sequence on 3 threads and 3-stage pipeline (docs/concepts.md). Build: scripts/build_figures.sh concepts_parallel
+\documentclass{standalone}
+\usepackage{ifthen}
+\usepackage{tikz}
+\usetikzlibrary{streampu}
+
+\begin{document}
+  \begin{tikzpicture}[background rectangle/.style={thick, draw=gray!60, fill=white, fill opacity=1.0, rounded corners=2px}, show background rectangle]
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% Sequence duplicated on 3 threads (spatial parallelism)    %%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \task                      {t1} {0.0, 0.0} {initialize} {0} {1} {0} {};
+    \task [right=0.8cm of t1]  {t2} {}         {increment}  {1} {1} {0} {};
+    \task [right=0.8cm of t2]  {t3} {}         {increment}  {1} {1} {0} {};
+    \task [right=0.8cm of t3]  {t4} {}         {finalize}   {1} {0} {0} {};
+    \draw [bind, thick] (t1_so1) -- (t2_si1);
+    \draw [bind, thick] (t2_so1) -- (t3_si1);
+    \draw [bind, thick] (t3_so1) -- (t4_si1);
+    \sequence {"t1","t2","t3","t4"} {s1} {Sequence on 3 threads (spatial parallelism)} {3};
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% Pipeline with 3 stages (temporal parallelism)             %%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \task                      {t5} {-0.5,-3.8} {generate} {0} {1} {0} {"seq"};
+    \task [right=1.4cm of t5]  {t6} {}          {relay}    {1} {1} {0} {};
+    \task [right=0.8cm of t6]  {t7} {}          {relay}    {1} {1} {0} {};
+    \task [right=1.4cm of t7]  {t8} {}          {send}     {1} {0} {0} {"seq"};
+    \draw [bind, thick] (t5_so1) -- (t6_si1);
+    \draw [bind, thick] (t6_so1) -- (t7_si1);
+    \draw [bind, thick] (t7_so1) -- (t8_si1);
+    \stage {"t5"}      {st1} {Stage 1} {1};
+    \stage {"t6","t7"} {st2} {Stage 2} {3};
+    \stage {"t8"}      {st3} {Stage 3} {1};
+    \node[pip, inner sep=0.6cm, yshift=-0.15cm, fit=(st1) (st2) (st3) (st2_thr3),
+          label={[Dark2-8, align=center]below:Pipeline with 3 stages (temporal parallelism)}] (p1) {};
+  \end{tikzpicture}
+\end{document}

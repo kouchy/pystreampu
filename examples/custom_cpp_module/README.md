@@ -16,9 +16,10 @@ import my_module
 
 import streampu as spu
 
+mdl = my_module.Adder(4)
 x = spu.array([1, 2, 3, 4], dtype=spu.float64)
 y = mdl.add_one(x)
 
 print(y)
 ```
-This should return `[2 3 4 5]`.
+This should print `[[2. 3. 4. 5.]]`.
