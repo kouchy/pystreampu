@@ -23,15 +23,12 @@ def array(data: SocketLike, n_frames: int = 1, dtype: _ext.dtype = None) -> _ext
         Socket: a socket filled with data
 
     Examples:
-        .. code-block:: python
-
-           x = streampu.array([1, 2, 3], dtype=streampu.int16)
-           print(x)
-
-           [1 2 3]
+        >>> x = streampu.array([1, 2, 3], dtype=streampu.int16)
+        >>> x
+        socket([[1 2 3]], dtype=int16, name=data, task=Array.read)
 
     See Also:
-        :meth:`streampu.zeros`, :meth:`streampu.ones`, :meth:`streampu.arange`
+        `streampu.zeros`, `streampu.ones`, `streampu.arange`
     """
     if isinstance(data, _ext.core.Socket):  # socket case : do nothing
         if data.dtype.name != dtype.name:
@@ -66,15 +63,12 @@ def zeros(n_elmts: int = 1, n_frames: int = 1, dtype: _ext.dtype = _ext.float32)
         Socket: a socket filled with 0
 
     Examples:
-        .. code-block:: python
-
-           x = streampu.zeros(8, dtype=streampu.int16)
-           print(x)
-
-           [0 0 0 0 0 0 0 0]
+        >>> x = streampu.zeros(8, dtype=streampu.int16)
+        >>> x
+        socket([[0 0 0 0 0 0 0 0]], dtype=int16, name=data, task=Array.read)
 
     See Also:
-        :meth:`streampu.array`, :meth:`streampu.ones`, :meth:`streampu.arange`
+        `streampu.array`, `streampu.ones`, `streampu.arange`
     """
     return array([0] * n_elmts, n_frames, dtype)
 
@@ -93,14 +87,13 @@ def ones(n_elmts: int = 1, n_frames: int = 1, dtype: _ext.dtype = _ext.float32) 
     Examples:
         >>> x = streampu.ones(8)
         >>> x
-        socket([1. 1. 1. 1. 1. 1. 1. 1.], dtype=float32, name=X,
-        task=Array.get)
+        socket([[1. 1. 1. 1. 1. 1. 1. 1.]], dtype=float32, name=data, task=Array.read)
         >>> x = streampu.ones(8, dtype=streampu.int16)
         >>> x
-        socket([1 1 1 1 1 1 1 1], dtype=int16, name=X, task=Array.get)
+        socket([[1 1 1 1 1 1 1 1]], dtype=int16, name=data, task=Array.read)
 
     See Also:
-        :meth:`streampu.array`, :meth:`streampu.zeros`, :meth:`streampu.arange`
+        `streampu.array`, `streampu.zeros`, `streampu.arange`
     """
     return array([1] * n_elmts, n_frames, dtype)
 
@@ -124,14 +117,13 @@ def arange(
     Returns:
         Socket: a socket of evenly spaced values.
 
-
     Examples:
         >>> x = streampu.arange(1, 2, 0.25, dtype=streampu.float64)
         >>> x
-        socket([1.   1.25 1.5  1.75], dtype=float64, name=X,task=Array.get)
+        socket([[1.   1.25 1.5  1.75]], dtype=float64, name=data, task=Array.read)
 
     See Also:
-        :meth:`streampu.array`, :meth:`streampu.zeros`, :meth:`streampu.ones`
+        `streampu.array`, `streampu.zeros`, `streampu.ones`
     """
     arr = np.arange(start, stop, step, dtype=np.dtype(dtype.name))
     return array(arr, n_frames, dtype)

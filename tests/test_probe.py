@@ -41,7 +41,7 @@ def test_probe_report_generation(tmp_path):
     speed *= 4
 
     terminal = spu.Terminal_dump([reporter])
-    seq = spu.Sequence.from_socket([speed, distance, duration])
+    seq = spu.Sequence([speed, distance, duration])
     spu.rang.disable_colors()
 
     path = tmp_path / "probe_report.txt"

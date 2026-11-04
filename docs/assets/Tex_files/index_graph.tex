@@ -1,0 +1,31 @@
+% Graph built by `x + y` (docs/index.md). Build: scripts/build_figures.sh index_graph
+\documentclass{standalone}
+\usepackage{ifthen}
+\usepackage{tikz}
+\usetikzlibrary{streampu}
+
+\begin{document}
+  \begin{tikzpicture}[background rectangle/.style={thick, draw=gray!60, fill=white, fill opacity=1.0, rounded corners=2px}, show background rectangle]
+    % tasks:  id    coords        label      sin sout sfwd attributes
+    \task     {t1}  {0.0, 1.0}    {read}     {0} {0}  {1}  {};
+    \task     {t2}  {0.0,-1.5}    {read}     {0} {0}  {1}  {};
+    \task     {t3}  {4.0,-0.25}   {perform}  {2} {1}  {0}  {};
+
+    % modules
+    \module {"t1"} {m1} {Array ($x$)};
+    \module {"t2"} {m2} {Array ($y$)};
+    \module {"t3"} {m3} {Binaryop\textless add\textgreater};
+
+    % socket names
+    \node[sfwdlbl, anchor=south west] at (t1_so1.north east) {data};
+    \node[sfwdlbl, anchor=south west] at (t2_so1.north east) {data};
+    \node[sinlbl,  anchor=south east] at (t3_si1.north west) {in0};
+    \node[sinlbl,  anchor=north east] at (t3_si2.south west) {in1};
+    \node[soutlbl, anchor=south west] at (t3_so1.north east) {out};
+
+    % bindings
+    \draw [bind, thick] (t1_so1) -- (t3_si1);
+    \draw [bind, thick] (t2_so1) -- (t3_si2);
+    \draw [bind, thick] (t3_so1) -- ++(1.2, 0) node[right, font=\footnotesize] {$x + y$};
+  \end{tikzpicture}
+\end{document}

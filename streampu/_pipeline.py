@@ -8,9 +8,24 @@ class Pipeline(_Pipeline):
     def __init__(self, *args, **kwargs):
         """Build a Pipeline.
 
+        The arguments are those of the C++ constructor, in this order: `firsts` (first
+        tasks), `lasts` (last tasks), `sep_stages` (for each stage, a list
+        `[first tasks, last tasks, excluded tasks]`), `n_threads` (number of threads per
+        stage), `synchro_buffer_sizes` and `synchro_active_waiting` (one value between
+        each pair of consecutive stages), `thread_pinning` and `puids`.
+
         Args:
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
+            *args (Any): positional arguments of the C++ constructor
+            **kwargs (Any): keyword arguments of the C++ constructor
+
+        Examples:
+            >>> pipeline = streampu.Pipeline(
+            ...     [source.generate], [sink.send_count],
+            ...     [[[source.generate], [source.generate], []],
+            ...      [[rly.relay], [rly.relay], []],
+            ...      [[sink.send_count], [sink.send_count], []]],
+            ...     [1, 4, 1], [16, 16], [False, False])
+            >>> pipeline.exec()
         """
         super().__init__(*args, **kwargs)
         self.original_modules = super().get_original_modules()
@@ -25,7 +40,7 @@ class Pipeline(_Pipeline):
         Args:
             module_class(type): a module class type
             set_modules(bool): if True consider 'set' as modules,
-            else explore the content of the set
+                else explore the content of the set
 
         Returns:
             out (list): list of modules with type `module_class`

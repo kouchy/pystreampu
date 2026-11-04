@@ -10,16 +10,28 @@ using namespace pyspu::wrapper;
 void
 pyspu::wrapper::wrap_slicer(py::handle scope)
 {
-    auto slicer_class = py::class_<spu::module::Slicer, spu::module::Stateful>(scope, "Slicer");
+    auto slicer_class = py::class_<spu::module::Slicer, spu::module::Stateful>(scope, "Slicer", "Module behind the indexing of sockets (`x[i]`, `x[a:b]`, `x[[i, j]]`), for reading and writing.");
     slicer_class.def(py::init<spu::runtime::Socket&, const std::vector<int>&>(),
                      "sck"_a,
                      "slice"_a,
-                     R"pbdoc(Range:)pbdoc",
+                     R"pbdoc(
+        Build a slicer that reads or writes some elements of a socket (used by `x[...]`).
+
+        Args:
+            sck (Socket): the socket to slice
+            slice (list[int]): indices of the elements
+    )pbdoc",
                      py::return_value_policy::take_ownership);
     slicer_class.def(py::init<spu::runtime::Socket&, const int>(),
                      "sck"_a,
                      "idx"_a,
-                     R"pbdoc(Range:)pbdoc",
+                     R"pbdoc(
+        Build a slicer that reads or writes one element of a socket (used by `x[i]`).
+
+        Args:
+            sck (Socket): the socket to slice
+            idx (int): index of the element
+    )pbdoc",
                      py::return_value_policy::take_ownership);
 }
 

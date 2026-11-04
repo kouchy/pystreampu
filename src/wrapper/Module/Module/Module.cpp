@@ -21,7 +21,15 @@ void pyspu::wrapper::wrap_module(py::handle scope)
 auto py_module_class = py::class_<Module, spu::tools::Interface_clone, spu::tools::Interface_get_set_n_frames, spu::module::Module_Trampoline>(
       scope,
       "Module",
-      py::dynamic_attr());
+      py::dynamic_attr(),
+      R"pbdoc(
+        Base class of the StreamPU modules: an object that holds tasks.
+
+        The tasks of a module are reached by name, `module["task"]` or `module.task`,
+        and their sockets with `module["task::socket"]`. A module processes `n_frames`
+        frames per execution of its tasks. `spu.help(module)` prints its tasks and their
+        sockets.
+    )pbdoc");
 
     //py_module_class.def(py::init<>());
     //py_module_class.def(py::init<const Module&>());
@@ -35,13 +43,13 @@ auto py_module_class = py::class_<Module, spu::tools::Interface_clone, spu::tool
               tasks.push_back(t.get());
           return tasks;
       },
-      R"pbdoc(Module's list of tasks.)pbdoc");
+      R"pbdoc(Tasks of the module.)pbdoc");
 
     py_module_class.def_property(
       "name",
       [](const Module& m) { return m.get_custom_name() == "" ? m.get_name() : m.get_custom_name(); },
       &Module::set_custom_name,
-      R"pbdoc(Name of the module)pbdoc");
+      R"pbdoc(Name of the module (can be changed, e.g. to tell modules apart in the statistics).)pbdoc");
 
     py_module_class.def(
       "__getitem__",
@@ -72,7 +80,7 @@ auto py_module_class = py::class_<Module, spu::tools::Interface_clone, spu::tool
       py::is_operator());
 
     //py_module_class.def("deep_copy", &Module::deep_copy, "Create a deep copy of the module.");
-    py_module_class.def_property_readonly("clonable", &Module::is_clonable, "Whether the module is clonable or not.");
-    py_module_class.def_property_readonly("stateful", &Module::is_stateful, "Whether the module is stateful or not.");
-    py_module_class.def_property_readonly("stateless", &Module::is_stateless, "Whether the module is stateless or not.");
+    py_module_class.def_property_readonly("clonable", &Module::is_clonable, "True if the module can be duplicated on several threads.");
+    py_module_class.def_property_readonly("stateful", &Module::is_stateful, "True if the module keeps a state between executions.");
+    py_module_class.def_property_readonly("stateless", &Module::is_stateless, "True if the module does not keep any state (it can then be cloned automatically).");
 };

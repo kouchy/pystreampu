@@ -17,7 +17,9 @@ python3 -m pytest tests --cov=streampu --cov-report=lcov --cov-report=term
 
 mv coverage.lcov code_coverage_files/streampu.info
 
-lcov --capture --directory build/CMakeFiles/_ext.dir/src \
+# The build folder depends on the interpreter (build-dir = "build/{wheel_tag}" in pyproject.toml)
+EXT_OBJ_DIR=$(ls -d build/*/CMakeFiles/_ext.dir/src | head -n 1)
+lcov --capture --directory "${EXT_OBJ_DIR}" \
      --output-file code_coverage_files/_ext.info \
      --ignore-errors inconsistent \
      --no-external \

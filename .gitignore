@@ -432,3 +432,21 @@ TSWLatexianTemp*
 # option is specified. Footnotes are the stored in a file with suffix Notes.bib.
 # Uncomment the next line to have this generated file ignored.
 #*Notes.bib
+
+# Intermediate files of the LaTeX figures (scripts/build_figures.sh)
+docs/assets/Tex_files/*.aux
+docs/assets/Tex_files/*.log
+docs/assets/Tex_files/*.fls
+docs/assets/Tex_files/*.fdb_latexmk
+docs/assets/Tex_files/*.synctex.gz
+docs/assets/Tex_files/*.dvi
+
+# Outputs of the C++ coverage job (ci/coverage-cpp-linux.sh) and of the benchmarks
+coverage.lcov
+report-cpp.xml
+code_coverage_files/
+code_coverage_report/
+durations_*.csv
+
+# Working notes, not part of the repository
+PLAN.md

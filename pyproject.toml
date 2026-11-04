@@ -16,15 +16,26 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[project.urls]
+Documentation = "https://rtajan.pages.bordeaux-inp.fr/pystreampu/"
+Source = "https://gitlab.bordeaux-inp.fr/rtajan/pystreampu"
+Issues = "https://gitlab.bordeaux-inp.fr/rtajan/pystreampu/-/issues"
+
 [project.optional-dependencies]
-tests = [
-  "pytest>=6.0",
-]
 dev = [
   "flake8",
-  "isort",
-  "black",
+  # Pinned: the CI regenerates the stubs and checks the formatting with the same versions
+  "isort==8.0.1",
+  "black==26.5.1",
   "pytest>=6.0",
+  "pybind11-stubgen==2.5.5",
+  "pre-commit",
+]
+docs = [
+  "mkdocs",
+  "mkdocs-material",
+  "mkdocstrings[python]",
+  "pymdown-extensions",
 ]
 
 [tool.pytest.ini_options]
@@ -51,7 +62,9 @@ archs = ["x86_64", "aarch64"]
 repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
 
 [tool.scikit-build]
-build-dir = "build"
+# One build folder per interpreter (e.g. build/cp312-cp312-macosx_14_0_arm64): a shared
+# folder mixes the extension modules built for different Python versions
+build-dir = "build/{wheel_tag}"
 cmake.define.CMAKE_CXX_FLAGS ="-Wall -funroll-loops -fvisibility=hidden -fvisibility-inlines-hidden"
 wheel.packages = ["streampu"]
 wheel.license-files = ["LICENSE"]
@@ -74,6 +87,10 @@ profile = "black"
 
 [tool.black]
 line-length = 120
+# Explicit target: the oldest supported version. Black formats for the features common to
+# all its targets, so this is the same formatting as listing every version >= 3.8, without
+# the warning raised when a target is newer than the running interpreter.
+target-version = ["py38"]
 
 [tool.coverage.run]
 omit = [

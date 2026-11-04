@@ -18,7 +18,9 @@ pip3 install --verbose -Ccmake.define.CMAKE_BUILD_TYPE=Debug \
 # Run tests to execute C++ extension code paths and generate gcda files.
 python3 -m pytest tests --junitxml=report-cpp.xml
 
-lcov --capture --directory build/CMakeFiles/_ext.dir/src \
+# The build folder depends on the interpreter (build-dir = "build/{wheel_tag}" in pyproject.toml)
+EXT_OBJ_DIR=$(ls -d build/*/CMakeFiles/_ext.dir/src | head -n 1)
+lcov --capture --directory "${EXT_OBJ_DIR}" \
      --output-file code_coverage_files/_ext.info \
      --ignore-errors inconsistent \
      --no-external \

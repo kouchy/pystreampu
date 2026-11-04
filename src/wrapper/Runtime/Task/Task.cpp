@@ -16,7 +16,16 @@ using namespace spu::runtime;
 void
 pyspu::wrapper::wrap_task(py::handle scope)
 {
-    py::class_<spu::runtime::Task> py_task(scope, "Task");
+    py::class_<spu::runtime::Task> py_task(scope, "Task", R"pbdoc(
+        A processing step of a module: the code executed by a node of the data-flow graph.
+
+        A task reads its input sockets, writes its output sockets and modifies its forward
+        sockets. Its sockets are reached by name: `task["name"]` or `task.name`.
+
+        Calling a task, `task(*sockets)`, binds the given sockets to its input and forward
+        sockets (in the order of `task.sockets`), executes it once and returns its output
+        sockets (without `status`).
+    )pbdoc");
 
     py::enum_<status_t>(py_task, "Status", "Enumeration of tasks return code.")
       .value("SUCCESS", status_t::SUCCESS, "Success code")
@@ -24,7 +33,7 @@ pyspu::wrapper::wrap_task(py::handle scope)
       .value("FAILURE_STOP", status_t::FAILURE_STOP, "Failure stop code")
       .value("UNKNOWN", status_t::UNKNOWN, "Unknown code");
 
-    py_task.def_property_readonly("name", &spu::runtime::Task::get_name);
+    py_task.def_property_readonly("name", &spu::runtime::Task::get_name, "Name of the task.");
     py_task.def_property_readonly("sockets",
                                   [](spu::runtime::Task& t)
                                   {
@@ -33,11 +42,23 @@ pyspu::wrapper::wrap_task(py::handle scope)
                                       for (auto s : t.sockets)
                                           sckts.push_back(s.get());
                                       return sckts;
-                                  });
+                                  },
+                                  "All the sockets of the task, in their order of creation.");
 
-    py_task.def("can_exec", &spu::runtime::Task::can_exec);
+    py_task.def("can_exec", &spu::runtime::Task::can_exec, R"pbdoc(
+        Tell whether the task can be executed.
 
-    py_task.def("interrupt_processing", [](spu::runtime::Task& t) { throw spu::tools::processing_aborted(); });
+        Returns:
+            out (bool): True if every socket of the task has data (input sockets bound,
+                output sockets allocated)
+    )pbdoc");
+
+    py_task.def("interrupt_processing", [](spu::runtime::Task& t) { throw spu::tools::processing_aborted(); }, R"pbdoc(
+        Raise a `ProcessingAborted` exception (same as `abort_processing`).
+
+        Raises:
+            ProcessingAborted: always
+    )pbdoc");
 
     py_task.def_property_readonly("inputs",
                                   [](spu::runtime::Task& t)
@@ -48,7 +69,8 @@ pyspu::wrapper::wrap_task(py::handle scope)
                                           if (s->get_type() == spu::runtime::socket_t::SIN) in.push_back(s.get());
 
                                       return in;
-                                  });
+                                  },
+                                  "Input sockets of the task.");
 
     py_task.def_property_readonly("forwards",
                                   [](spu::runtime::Task& t)
@@ -59,7 +81,8 @@ pyspu::wrapper::wrap_task(py::handle scope)
                                           if (s->get_type() == spu::runtime::socket_t::SFWD) fwd.push_back(s.get());
 
                                       return fwd;
-                                  });
+                                  },
+                                  "Forward sockets of the task.");
 
     py_task.def_property_readonly("outputs",
                                   [](spu::runtime::Task& t)
@@ -69,7 +92,8 @@ pyspu::wrapper::wrap_task(py::handle scope)
                                       for (auto s : t.sockets)
                                           if (s->get_type() == spu::runtime::socket_t::SOUT) out.push_back(s.get());
                                       return out;
-                                  });
+                                  },
+                                  "Output sockets of the task, including `status`.");
 
     py_task.def("exec",
       [](spu::runtime::Task& self, const int frame_id, const bool managed_memory)
@@ -81,18 +105,32 @@ pyspu::wrapper::wrap_task(py::handle scope)
           self.exec(frame_id, managed_memory);
       },
       "frame_id"_a = -1,
-      "managed_memory"_a = true);
+      "managed_memory"_a = true,
+      R"pbdoc(
+        Execute the task once.
+
+        Args:
+            frame_id (int): index of the frame to process, or -1 to process all the frames
+                of the module (`n_frames`)
+            managed_memory (bool): let StreamPU manage the memory of the sockets
+
+        Raises:
+            RuntimeError: if some sockets have no data (see `can_exec`)
+    )pbdoc");
     py_task.def("__getitem__",
                 [](spu::runtime::Task& t, const std::string& s)
                 {
                     auto& m = t.get_module();
                     return py::cast(&m[t.get_name() + "::" + s]);
                 }, py::is_operator());
-    py_task.def_property_readonly("module", &spu::runtime::Task::get_module);
-    py_task.def_property("debug", &spu::runtime::Task::is_debug, &spu::runtime::Task::set_debug);
-    py_task.def_property("stats", &spu::runtime::Task::is_stats, &spu::runtime::Task::set_stats);
-    py_task.def_property("fast", &spu::runtime::Task::is_fast, &spu::runtime::Task::set_fast);
-    py_task.def_property_readonly("n_calls", &spu::runtime::Task::get_n_calls);
+    py_task.def_property_readonly("module", &spu::runtime::Task::get_module, "Module that owns the task.");
+    py_task.def_property("debug", &spu::runtime::Task::is_debug, &spu::runtime::Task::set_debug,
+                         "If True, print the content of the sockets at each execution.");
+    py_task.def_property("stats", &spu::runtime::Task::is_stats, &spu::runtime::Task::set_stats,
+                         "If True, measure the duration of each execution (see `avg_duration`...).");
+    py_task.def_property("fast", &spu::runtime::Task::is_fast, &spu::runtime::Task::set_fast,
+                         "If True, skip some checks at each execution, for speed.");
+    py_task.def_property_readonly("n_calls", &spu::runtime::Task::get_n_calls, "Number of executions since the last `reset`.");
     py_task.def_property_readonly("total_duration",
                                   [](const spu::runtime::Task& self)
                                   {
@@ -100,7 +138,8 @@ pyspu::wrapper::wrap_task(py::handle scope)
                                           return std::chrono::duration<double>(self.get_duration_total()).count();
                                       else
                                           return double(0.0f);
-                                  });
+                                  },
+                                  "Total time spent in the task, in seconds (0 if `stats` is False).");
     py_task.def_property_readonly("avg_duration",
                                   [](const spu::runtime::Task& self)
                                   {
@@ -108,7 +147,8 @@ pyspu::wrapper::wrap_task(py::handle scope)
                                           return std::chrono::duration<double>(self.get_duration_avg()).count();
                                       else
                                           return double(0.0f);
-                                  });
+                                  },
+                                  "Average duration of an execution, in seconds (0 if `stats` is False).");
     py_task.def_property_readonly("min_duration",
                                   [](const spu::runtime::Task& self)
                                   {
@@ -116,7 +156,8 @@ pyspu::wrapper::wrap_task(py::handle scope)
                                           return std::chrono::duration<double>(self.get_duration_min()).count();
                                       else
                                           return double(0.0f);
-                                  });
+                                  },
+                                  "Minimum duration of an execution, in seconds (0 if `stats` is False).");
     py_task.def_property_readonly("max_duration",
                                   [](const spu::runtime::Task& self)
                                   {
@@ -124,33 +165,84 @@ pyspu::wrapper::wrap_task(py::handle scope)
                                           return std::chrono::duration<double>(self.get_duration_max()).count();
                                       else
                                           return double(0.0f);
-                                  });
-    py_task.def("reset", &spu::runtime::Task::reset);
+                                  },
+                                  "Maximum duration of an execution, in seconds (0 if `stats` is False).");
+    py_task.def("reset", &spu::runtime::Task::reset, "Reset the statistics of the task (`n_calls`, durations).");
     py_task.def(
       "bind",
       [](spu::runtime::Task& self, spu::runtime::Socket& s_out, const int priority) { self.bind(s_out, priority); },
-      "Binds the Task to socket 's_out' with priority 'priority'.",
+      R"pbdoc(
+        Bind the task to a socket, to force an order of execution without exchanging data.
+
+        The task will be executed after the task that owns `s_out`.
+
+        Args:
+            s_out (Socket): an output or forward socket of another task
+            priority (int): priority of the binding, -1 for the default one
+    )pbdoc",
       "s_out"_a,
       "priority"_a = -1);
     py_task.def(
       "bind",
       [](spu::runtime::Task& self, spu::runtime::Task& t_out, const int priority) { self.bind(t_out, priority); },
-      "Binds the Task to task 't_out' with priority 'priority'.",
+      R"pbdoc(
+        Bind the task to another task, to force an order of execution without exchanging data.
+
+        Args:
+            t_out (Task): the task to execute before this one
+            priority (int): priority of the binding, -1 for the default one
+    )pbdoc",
       "t_out"_a,
       "priority"_a = -1);
 
     py_task.def("is_bound",[](spu::runtime::Task& self){
       return self.fake_input_sockets.size() > 0;
-    });
-    py_task.def("set_debug_hex", &spu::runtime::Task::set_debug_hex, "debug_hex"_a);
-    py_task.def("set_debug_limit", &spu::runtime::Task::set_debug_limit, "limit"_a);
-    py_task.def("set_debug_precision", &spu::runtime::Task::set_debug_precision, "prec"_a);
-    py_task.def("set_debug_frame_max", &spu::runtime::Task::set_debug_frame_max, "limit"_a);
+    }, R"pbdoc(
+        Tell whether the task is bound to another task or socket with `bind`.
+
+        Returns:
+            out (bool): True if the task has been bound with `Task.bind`
+    )pbdoc");
+    py_task.def("set_debug_hex", &spu::runtime::Task::set_debug_hex, "debug_hex"_a, R"pbdoc(
+        Print the data in hexadecimal in debug mode.
+
+        Args:
+            debug_hex (bool): True to print in hexadecimal
+    )pbdoc");
+    py_task.def("set_debug_limit", &spu::runtime::Task::set_debug_limit, "limit"_a, R"pbdoc(
+        Set the maximum number of elements printed per socket in debug mode.
+
+        Args:
+            limit (int): maximum number of elements
+    )pbdoc");
+    py_task.def("set_debug_precision", &spu::runtime::Task::set_debug_precision, "prec"_a, R"pbdoc(
+        Set the number of decimals of the floating-point values printed in debug mode.
+
+        Args:
+            prec (int): number of decimals
+    )pbdoc");
+    py_task.def("set_debug_frame_max", &spu::runtime::Task::set_debug_frame_max, "limit"_a, R"pbdoc(
+        Set the maximum number of frames printed in debug mode.
+
+        Args:
+            limit (int): maximum number of frames
+    )pbdoc");
     py_task.def("abort_processing",[](spu::runtime::Task& self){
         throw spu::tools::processing_aborted(__FILE__, __LINE__, __func__);
-    });
+    }, R"pbdoc(
+        Raise a `ProcessingAborted` exception, to stop the processing from a codelet.
+
+        Raises:
+            ProcessingAborted: always
+    )pbdoc");
     py_task.def("cancel_waiting",[](spu::runtime::Task& self){
         throw spu::tools::waiting_canceled(__FILE__, __LINE__, __func__);
-    });
-    py_task.def_property("replicable", &spu::runtime::Task::is_replicable, &spu::runtime::Task::set_replicability);
+    }, R"pbdoc(
+        Raise a `WaitingCanceled` exception, to stop a task that waits for data.
+
+        Raises:
+            WaitingCanceled: always
+    )pbdoc");
+    py_task.def_property("replicable", &spu::runtime::Task::is_replicable, &spu::runtime::Task::set_replicability,
+                         "If True, the task can be duplicated on several threads (its module must be clonable).");
 };

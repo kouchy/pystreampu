@@ -6,7 +6,7 @@ using namespace py::literals;
 void
 pyspu::wrapper::wrap_probe_time(py::handle scope)
 {
-    py::class_<spu::module::Probe_time, spu::module::Probe<uint8_t>>(scope, "Probe_time")
+    py::class_<spu::module::Probe_time, spu::module::Probe<uint8_t>>(scope, "Probe_time", "Probe that reports the time elapsed since its creation or its last reset, in seconds.")
       .def(py::init<const std::string&, spu::tools::Reporter_probe*>(),
            "col_name"_a,
            "reporter"_a = nullptr,

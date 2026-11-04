@@ -14,8 +14,9 @@ void
 pyspu::wrapper::wrap_controller(py::handle scope)
 {
     auto py_controller_class =
-      py::class_<spu::module::Controller, spu::module::Stateful, spu::tools::Interface_reset>(scope, "Controller");
-    py_controller_class.def_property("path", &spu::module::Controller::get_path, &spu::module::Controller::set_path);
+      py::class_<spu::module::Controller, spu::module::Stateful, spu::tools::Interface_reset>(scope, "Controller", "Base class of the controllers: modules that output the index of the path to take in a `Switcher`.");
+    py_controller_class.def_property("path", &spu::module::Controller::get_path, &spu::module::Controller::set_path,
+                                    "Index of the current path.");
 }
 
 void

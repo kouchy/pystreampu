@@ -18,7 +18,7 @@ def test_sequence_bop_add(builder, expected):
     x = spu.array([1, 2, 3])
     y = builder(x)
 
-    seq = spu.Sequence.from_socket(y)
+    seq = spu.Sequence(y)
     seq.exec_seq()
 
     np.testing.assert_array_equal(y.numpy, expected)
@@ -32,7 +32,7 @@ def test_sequence_bop_inplace_chained_ops():
     x += 1
     x *= 2
 
-    seq = spu.Sequence.from_socket(x)
+    seq = spu.Sequence(x)
     x_view[:] = [1, 2, 3]  # Reset backing values before executing the built sequence.
     seq.exec_seq()
 

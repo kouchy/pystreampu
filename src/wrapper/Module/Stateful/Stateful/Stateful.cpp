@@ -13,10 +13,11 @@ pyspu::wrapper::wrap_stateful(py::handle scope)
 
     auto stateful_core_class = py::class_<spu::module::Stateful_core, spu::module::Stateful>(scope, "Stateful_core", R"pbdoc(Stateful_core is the class that will contain the 'core' of python stateful modules. It inherits from Stateful, and implements the clone method by cloning the python state of the Module's body as well as its own state.)pbdoc");
 
-    stateful_core_class.def(py::init<>());
-    stateful_core_class.def(py::init<const Stateful_core&>());
+    stateful_core_class.def(py::init<>(), "Build an empty module: add tasks with `create_task`, and implement `clone`.");
+    stateful_core_class.def(py::init<const Stateful_core&>(), "Build a copy of another module.");
 
-    stateful_core_class.def_property("n_frames_per_wave", &Stateful::get_n_frames_per_wave, &Stateful_core::set_n_frames_per_wave);
+    stateful_core_class.def_property("n_frames_per_wave", &Stateful::get_n_frames_per_wave, &Stateful_core::set_n_frames_per_wave,
+                                     "Number of frames processed by each call of the codelets (by default, all the frames).");
 
     stateful_core_class.def(
       "create_socket_in",
@@ -68,7 +69,22 @@ pyspu::wrapper::wrap_stateful(py::handle scope)
 
     stateful_core_class.def(
       "create_task",
-      [](Stateful_core& mdl, const std::string& name) { return &mdl.create_task(name); },
+      [](Stateful_core& mdl, const std::string& name)
+      {
+          // Lets `clone()` know that StreamPU only checks whether the module is clonable
+          mdl.set_creating_task(true);
+          try
+          {
+              auto* task = &mdl.create_task(name);
+              mdl.set_creating_task(false);
+              return task;
+          }
+          catch (...)
+          {
+              mdl.set_creating_task(false);
+              throw;
+          }
+      },
       "name"_a,
       R"pbdoc(
         Create a new task.
@@ -82,7 +98,17 @@ pyspu::wrapper::wrap_stateful(py::handle scope)
     )pbdoc",
       py::return_value_policy::reference);
 
-    stateful_core_class.def("create_codelet", &Stateful_core::create_codelet);
+    stateful_core_class.def("create_codelet", &Stateful_core::create_codelet, "task"_a, "codelet"_a, R"pbdoc(
+        Set the function executed by a task (its codelet).
+
+        The codelet is called as `codelet(module, task, frame_id)` and must return 0 on
+        success. Inside it, the data of the sockets are reached with `task.<name>.numpy`;
+        outputs must be written in place (`out[:] = ...`).
+
+        Args:
+            task (Task): a task created with `create_task`
+            codelet (Callable): the function to execute
+    )pbdoc");
 
     stateful_core_class.def("clone", [](const Stateful_core& self) -> py::object {
         py::function py_clone = py::get_override(&self, "clone");
@@ -91,5 +117,14 @@ pyspu::wrapper::wrap_stateful(py::handle scope)
         }
         // fallback : instance C++ pure
         return py::cast(self.Stateful::clone());
-    }, py::return_value_policy::take_ownership);
+    }, py::return_value_policy::take_ownership, R"pbdoc(
+        Return a copy of the module, used to duplicate it on several threads.
+
+        Override it in Python subclasses: create the new instance without calling
+        `__init__` (StreamPU copies the tasks, sockets and codelets) and copy the Python
+        state.
+
+        Returns:
+            out (Stateful_core): the copy
+    )pbdoc");
 }
