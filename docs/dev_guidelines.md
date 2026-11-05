@@ -56,6 +56,56 @@ scripts/generate_stubs.sh
 
 The CI job `stubs` checks that they are up to date.
 
+## Building and publishing the wheels
+
+The wheels are built by GitLab CI on the tags `v*`, or on demand (Build > Pipelines >
+Run pipeline):
+
+- `build-wheels-linux` (Linux x86_64) and `sdist` run on the x86 runner;
+- `build-wheels-macos` (macOS arm64 and x86_64) and `build-wheels-linux-aarch64` run on
+  an Apple Silicon Mac registered as a runner (shell executor, tag `macos-arm64`);
+- on a tag, `publish` uploads all of them to TestPyPI, or to PyPI when the variable
+  `PYPI_REPOSITORY_URL` is `https://upload.pypi.org/legacy/`.
+
+Setup of the Apple Silicon runner, under a dedicated user account (a standard account,
+for example `gitlab-runner`, with no access to personal data):
+
+- with an administrator account: the Xcode command line tools (`xcode-select --install`),
+  Rosetta (`softwareupdate --install-rosetta`, to test the x86_64 wheels) and, with
+  Homebrew, `brew install python gitlab-runner colima docker` (Python >= 3.11 runs
+  cibuildwheel; the commands in `/opt/homebrew/bin` can be used by every account);
+- cibuildwheel installs the python.org builds of Python with `sudo installer`: allow it
+  without password for the dedicated account, with
+  `sudo visudo -f /etc/sudoers.d/gitlab-runner` and the line
+  `gitlab-runner ALL=(root) NOPASSWD: /usr/sbin/installer`. Anyone who can run a job on
+  this runner then has the rights of root: keep the runner protected and dedicated to
+  this project;
+- with the dedicated account: register the runner for this project only
+  (Settings > CI/CD > Runners > New project runner), with the tag `macos-arm64`, the
+  `shell` executor and the option "Protected" (it then only runs the jobs of the
+  protected branches and tags). In `~/.gitlab-runner/config.toml`, set `concurrent = 2`
+  and, in the `[[runners]]` section,
+  `environment = ["PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"]`
+  (the service does not get the PATH of a terminal). Then `gitlab-runner install` and
+  `gitlab-runner start`;
+- Colima provides the Docker engine of the Linux aarch64 wheels, without a graphical
+  session; the job starts it when it is not running (8 CPUs and 16 GB by default, see
+  the variables `COLIMA_CPUS` and `COLIMA_MEMORY`). Check once with
+  `colima start --arch aarch64` and `docker run --rm hello-world`. If
+  `~/.docker/config.json` contains `"credsStore": "desktop"` (left by Docker Desktop),
+  remove this line;
+- on macOS, `gitlab-runner` runs as a service of the user (LaunchAgent): it only works
+  while this account has an open session. Enable the automatic login of the dedicated
+  account (System Settings > Users & Groups), so that the runner comes back after a
+  restart.
+
+Publication: the masked and protected variable `PYPI_API_TOKEN` holds an API token of
+TestPyPI (or PyPI), and the tags `v*` must be protected (Settings > Repository >
+Protected tags) so that the job of a tag can read it.
+
+The GitHub workflow `.github/workflows/wheels.yml` only runs on demand and publishes
+nothing: it can test the platforms that GitLab does not cover, such as Windows.
+
 ## Documentation
 
 The documentation is written in Markdown in `docs/` and built with MkDocs:
