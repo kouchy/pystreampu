@@ -59,7 +59,11 @@ The CI job `stubs` checks that they are up to date.
 ## Building and publishing the wheels
 
 The wheels are built by GitLab CI on the tags `v*`, or on demand (Build > Pipelines >
-Run pipeline):
+Run pipeline), when the variable `BUILD_WHEELS` is `"true"`. It is `"false"` by default
+for now: the jobs below are then not created. Set it in Settings > CI/CD > Variables, or
+when running a pipeline. The pipeline of a tag can be run again later (Run pipeline, on
+the tag) to add the wheels of some platforms to a version that is already published:
+`publish` skips the files already uploaded, and the files of PyPI cannot be replaced.
 
 - `build-wheels-linux` (Linux x86_64) and `sdist` run on the x86 runner;
 - `build-wheels-macos` (macOS arm64 and x86_64) and `build-wheels-linux-aarch64` run on
