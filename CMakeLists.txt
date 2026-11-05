@@ -76,6 +76,8 @@ else()
         option(SPU_COMPILE_SHARED_LIB "" OFF)
         # The StreamPU tests are not needed (and not shipped in the sdist)
         option(SPU_TESTS "" OFF)
+        # Nor the benchmark executable (StreamPU >= 1.9.3), which would be installed in the wheels
+        option(SPU_BENCHMARK "" OFF)
         add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/streampu/)
 
         message(STATUS "Sub-project found: streampu")
