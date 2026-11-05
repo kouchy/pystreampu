@@ -81,3 +81,28 @@ the examples of the documentation and compares their results with these outputs:
 ```bash
 python scripts/check_tutorial.py
 ```
+
+## Updating StreamPU
+
+Each minor version of pyStreamPU embeds one minor version of StreamPU (see the table of
+versions in the [installation page](install.md#versions)). The new versions of StreamPU
+are integrated one at a time, by `ci/update_streampu.py`:
+
+- the scheduled pipeline `update-streampu` (variable `STREAMPU_UPDATE=true`) runs it on
+  the default branch. When StreamPU has a newer tag than `SPU_OVERRIDE_VERSION`, it
+  creates the branch `streampu-X.Y.Z` (submodule, `SPU_OVERRIDE_VERSION`, table of
+  versions) and opens a merge request whose description is the integration plan. The
+  merge request is a draft when StreamPU changes its public headers, its classes, its
+  CMake options or its dependencies;
+- after the merge (squash), tag the default branch with the version given in the plan.
+
+pyStreamPU also has releases of its own between two versions of StreamPU (fixes, new
+features of the wrapper): the bot computes the new version from the latest tag of
+pyStreamPU, so the numbers of pyStreamPU and StreamPU do not have to match.
+
+To see the plan of the next version without changing anything:
+
+```bash
+python ci/update_streampu.py --dry-run
+python ci/update_streampu.py --dry-run --from v1.9.4 --to v1.10.0   # any two tags
+```
