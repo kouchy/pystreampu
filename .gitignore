@@ -454,3 +454,4 @@ PLAN.md
 # Other local virtual environments (env314/...)
 /env*/
 /.ccache/
+/streampu-update-plan.md

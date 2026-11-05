@@ -36,8 +36,11 @@ variables:
   tags:
     - x86
     - docker
-  # Without rules, a job is excluded from the merge request pipelines
+  # Without rules, a job is excluded from the merge request pipelines. The scheduled
+  # pipelines only run `update-streampu`.
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - when: on_success
   before_script:
     - apt-get update
@@ -317,6 +320,34 @@ sdist:
 
 
 # ---------------------------------------------------------------------------
+# Integration of the new versions of StreamPU
+# ---------------------------------------------------------------------------
+# Run by a pipeline schedule (Build > Pipeline schedules) on the default branch, with the
+# variable STREAMPU_UPDATE=true. When StreamPU has a newer version than the embedded one,
+# ci/update_streampu.py creates the branch `streampu-X.Y.Z` and opens a merge request
+# whose description is the integration plan (draft when the API of StreamPU changes).
+# Needs the masked variable STREAMPU_BOT_TOKEN: project access token, role Developer,
+# scopes `api` and `write_repository`.
+update-streampu:
+  stage: build
+  image: $CI_BASE_IMAGE
+  tags:
+    - x86
+    - docker
+  variables:
+    <<: *full_history
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $STREAMPU_UPDATE == "true"
+  script:
+    - python ci/update_streampu.py
+  artifacts:
+    when: always
+    paths:
+      - streampu-update-plan.md
+    expire_in: 1 week
+
+
+# ---------------------------------------------------------------------------
 # Documentation (MkDocs + GitLab Pages)
 # ---------------------------------------------------------------------------
 # The documentation does not need the compiled package: mkdocstrings reads the Python
@@ -356,7 +387,7 @@ pages:
     paths:
       - public
   rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE != "schedule"
 
 
 # macos:
