@@ -1,6 +1,7 @@
 #include "wrapper/Runtime/Task/Task.hpp"
 #include "wrapper/Module/Stateful/Array/Array.hpp"
 #include "wrapper/Runtime/Socket/Socket.hpp"
+#include "wrapper/Julia/gc_region.hpp"
 
 #include <chrono>
 #include <rang.hpp>
@@ -102,6 +103,16 @@ pyspu::wrapper::wrap_task(py::handle scope)
                                              py::module_::import("sys").attr("stdout") // Python output
           );
           // setControlMode(rang::control::Force);
+#ifdef SPU_JULIA
+          // A Julia module is evaluated by a Sequence or a Pipeline for each of its threads;
+          // for an immediate execution, evaluate it here, at its first execution
+          if (auto* mj = dynamic_cast<spu::module::Module_Julia*>(&self.get_module()))
+              if (!mj->is_eval())
+              {
+                  pyspu::wrapper::Julia_gc_unsafe_region gc_unsafe;
+                  mj->eval();
+              }
+#endif
           self.exec(frame_id, managed_memory);
       },
       "frame_id"_a = -1,

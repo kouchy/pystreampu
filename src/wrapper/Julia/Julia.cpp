@@ -1,6 +1,7 @@
 #ifdef SPU_JULIA
 
 #include "wrapper/Julia/Julia.hpp"
+#include "wrapper/Julia/gc_region.hpp"
 
 namespace py = pybind11;
 using namespace py::literals;
@@ -27,6 +28,7 @@ pyspu::wrapper::check_julia_exception(const std::string& context)
 std::string
 pyspu::wrapper::julia_repr(jl_value_t* value)
 {
+    pyspu::wrapper::Julia_gc_unsafe_region gc_unsafe;
     jl_function_t* repr = jl_get_function(jl_base_module, "repr");
     jl_value_t* text = jl_call1(repr, value);
     pyspu::wrapper::check_julia_exception("Julia error in repr");
@@ -64,6 +66,7 @@ pyspu::wrapper::wrap_julia(py::handle scope)
       [](const std::string& code)
       {
           Julia::init();
+          pyspu::wrapper::Julia_gc_unsafe_region gc_unsafe;
           Julia::eval_string(code);
           pyspu::wrapper::check_julia_exception("Julia error");
       },
@@ -84,6 +87,7 @@ pyspu::wrapper::wrap_julia(py::handle scope)
       {
           const std::string filename = py::str(py::module_::import("os").attr("fspath")(path));
           Julia::init();
+          pyspu::wrapper::Julia_gc_unsafe_region gc_unsafe;
           Julia::eval_file(filename);
           pyspu::wrapper::check_julia_exception("Julia error in '" + filename + "'");
       },

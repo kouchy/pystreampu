@@ -1,6 +1,7 @@
 #include "wrapper/Module/Stateful/Stateful/Stateful.hpp"
 #include "wrapper/Common/Tools/Type/Type.hpp"
 #include "wrapper/Common/Tools/type_functions.h"
+#include "wrapper/Common/Tools/python_codelet.hpp"
 
 namespace py = pybind11;
 using namespace py::literals;
@@ -98,7 +99,10 @@ pyspu::wrapper::wrap_stateful(py::handle scope)
     )pbdoc",
       py::return_value_policy::reference);
 
-    stateful_core_class.def("create_codelet", &Stateful_core::create_codelet, "task"_a, "codelet"_a, R"pbdoc(
+    stateful_core_class.def("create_codelet",
+      [](Stateful_core& mdl, spu::runtime::Task& task, const py::function& codelet)
+      { mdl.create_codelet(task, pyspu::wrapper::python_codelet(codelet)); },
+      "task"_a, "codelet"_a, R"pbdoc(
         Set the function executed by a task (its codelet).
 
         The codelet is called as `codelet(module, task, frame_id)` and must return 0 on

@@ -2,6 +2,7 @@
 
 #include "wrapper/Common/Tools/Type/Type.hpp"
 #include "wrapper/Julia/Julia.hpp"
+#include "wrapper/Julia/gc_region.hpp"
 
 namespace py = pybind11;
 using namespace py::literals;
@@ -81,10 +82,15 @@ pyspu::wrapper::wrap_module_julia(py::handle scope)
     mj_class.def("is_eval", &Module_Julia::is_eval, "True if the Julia code of the module has been evaluated.");
 
     mj_class.def("eval",
-                 &Module_Julia::eval,
+                 [](Module_Julia& mdl)
+                 {
+                     pyspu::wrapper::Julia_gc_unsafe_region gc_unsafe;
+                     mdl.eval();
+                 },
                  R"pbdoc(
-        Evaluate the Julia code of the module (states and codelets). A `Sequence` or a
-        `Pipeline` does it for each of its threads.
+        Evaluate the Julia code of the module (states and codelets). It is done
+        automatically: at the first immediate execution of a task, and by a `Sequence` or a
+        `Pipeline` for each of its threads.
 
         Raises:
             RuntimeError: if the module has already been evaluated, or has no codelet

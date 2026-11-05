@@ -12,8 +12,8 @@ input -> increment (Julia, stateless) -> * 2 (C++) -> accumulate (Julia, statefu
 
 !!! note "Work in progress"
     The Julia classes are in `streampu._ext.jl` for now (`Julia`, `Stateless_Julia`,
-    `Stateful_Julia`), and a Julia module must be evaluated (`mdl.eval()`) before an
-    immediate execution. Both will change: `spu.Stateless_Julia`, and automatic evaluation.
+    `Stateful_Julia`); they will be available as `spu.Stateless_Julia`... The Julia code of a
+    module is evaluated automatically, at its first immediate execution or by a `Sequence`.
 
 ## 1. Install Julia (>= 1.10.9)
 
@@ -98,4 +98,3 @@ The `calls` of the 4 threads add up to 1000 + 4.
 | `found unsuitable version` | Julia older than 1.10.9 | `juliaup add 1.11 && juliaup default 1.11` |
 | `has_julia: False` | the package was built without Julia (or Python imports the sources) | `rm -rf build/`, reinstall with `-C cmake.define.SPU_LINK_JULIA=ON`, test from another folder |
 | `Library not loaded: @rpath/libjulia...` at import | the RPATH of `_ext` misses the folder of libjulia | send the output of `otool -l $(python -c "import streampu._ext as e; print(e.__file__)") \| grep -A2 RPATH` |
-| `The task cannot be executed because the module has not been evaluated` | `eval()` missing before an immediate execution | call `mdl.eval()` (temporary, see the note above) |

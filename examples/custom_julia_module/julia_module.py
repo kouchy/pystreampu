@@ -57,11 +57,6 @@ acc.create_socket_in(t_acc, "in", N, spu.int32)
 acc.create_socket_out(t_acc, "out", N, spu.int32)
 acc.create_codelet(t_acc)  # the Julia function `accumulate` of codelets.jl
 
-# For now, a Julia module must be evaluated before an immediate execution
-# (a Sequence or a Pipeline evaluates its modules itself)
-inc.eval()
-acc.eval()
-
 # --- Immediate execution: each call runs the task ------------------------------
 x = spu.array(np.arange(N, dtype=np.int32))
 y = inc.increment(x)  # Julia
