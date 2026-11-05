@@ -6,7 +6,7 @@ the GIL, and can keep a state. This guide builds a module `Adder` with a task
 available in Python.
 
 The complete project is in the folder
-[`examples/custom_cpp_module`](https://gitlab.bordeaux-inp.fr/rtajan/pystreampu/-/tree/develop/examples/custom_cpp_module)
+[`examples/custom_cpp_module`](https://github.com/rtajan/pystreampu/tree/develop/examples/custom_cpp_module)
 of the repository; the code shown on this page is included from it.
 
 ```text
@@ -67,9 +67,10 @@ Two lines of the module initialization are required:
 
 ## Build the project
 
-The project must be compiled against the StreamPU and pybind11 versions used by the
-installed `streampu` package. `streampu.get_cmake_dirs()` gives the corresponding CMake
-directories:
+The project must be compiled against the StreamPU library and the pybind11 package
+installed with `streampu` (pybind11 is a dependency of `streampu`; any 3.0.x version
+works, they share the same binary interface). `streampu.get_cmake_dirs()` gives the
+corresponding CMake directories:
 
 ```python
 >>> import streampu
@@ -119,5 +120,33 @@ The module is then used like any StreamPU module:
 socket([[2. 3. 4. 5.]], dtype=float64, name=output, task=Adder.add_one)
 ```
 
-To distribute such a module as a Python package, see
-[Creating a plugin](plugins.md).
+## Distribute the module
+
+To distribute the module, package it as a regular Python package that depends on
+`streampu`, and import it explicitly (`import my_module`). With
+[scikit-build-core](https://scikit-build-core.readthedocs.io/), the build backend of
+`streampu` itself, add `streampu` to the build requirements so that the CMake project
+above can use `streampu.get_cmake_dirs()`:
+
+```toml
+[build-system]
+requires = ["scikit-build-core", "streampu"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "my-module"
+dependencies = ["streampu"]
+```
+
+In the `CMakeLists.txt`, ask `streampu` for its CMake directories before the
+`find_package` calls:
+
+```cmake
+find_package(Python COMPONENTS Interpreter REQUIRED)
+execute_process(COMMAND "${Python_EXECUTABLE}" -c "import streampu; print(streampu.get_cmake_dirs())"
+                OUTPUT_VARIABLE SPU_CMAKE_DIRS OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(NOT WIN32)
+    string(REPLACE ":" ";" SPU_CMAKE_DIRS "${SPU_CMAKE_DIRS}")  # CMake lists use ';'
+endif()
+list(APPEND CMAKE_PREFIX_PATH ${SPU_CMAKE_DIRS})
+```

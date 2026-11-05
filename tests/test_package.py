@@ -9,8 +9,8 @@ def test_get_cmake_dirs():
     dirs = spu.get_cmake_dirs()
     assert dirs is not None
 
-    # split the directories by colon and check that we get a list of directories
-    dir_list = dirs.split(":")
+    # split the directories by the path separator (':' or ';' on Windows) and check that we get a list of directories
+    dir_list = dirs.split(os.pathsep)
     assert isinstance(dir_list, list)
     assert len(dir_list) > 0
     # check that each directory exists

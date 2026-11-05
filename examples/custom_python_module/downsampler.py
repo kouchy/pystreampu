@@ -1,10 +1,9 @@
 """Minimal example of a module written in Python with a state: keep one sample out of F."""
 
 import streampu as spu
-from streampu._ext.sfl import Stateful_core
 
 
-class Downsampler(Stateful_core):
+class Downsampler(spu.Stateful_core):
     """Stateful module with one task, `downsample`, that keeps one sample out of `F`.
 
     The parameter `F` is stored as a Python attribute of the module: it is its state.
@@ -32,6 +31,6 @@ class Downsampler(Stateful_core):
         # is copied here: the tasks, sockets and codelets are copied by StreamPU itself, so
         # `__init__` must not be called again. `type(self)` keeps the class of subclasses.
         other = type(self).__new__(type(self))
-        Stateful_core.__init__(other)
+        spu.Stateful_core.__init__(other)
         other.F = self.F
         return other

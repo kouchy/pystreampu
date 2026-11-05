@@ -1,16 +1,43 @@
+# A single pipeline per push: the merge request pipeline when a merge request is open for
+# the branch, the branch pipeline otherwise (and the tag pipelines)
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   CI_BASE_IMAGE: "python:3.12"
+  PYTEST_WORKERS: 4  # pytest-xdist processes in the test jobs
+  # ccache: the object files are reused from one pipeline to the next (GitLab cache)
+  CCACHE_DIR: "$CI_PROJECT_DIR/.ccache"
+  CCACHE_BASEDIR: "$CI_PROJECT_DIR"
+  CCACHE_MAXSIZE: "2G"
+  CMAKE_C_COMPILER_LAUNCHER: ccache
+  CMAKE_CXX_COMPILER_LAUNCHER: ccache
+
+# Jobs that compute the package version (setuptools_scm) need the full history and the
+# tags. A fresh clone avoids reusing a shallow repository left on the runner by the other
+# jobs (fetching the missing history into it fails with "missing blob object").
+.full_history: &full_history
+  GIT_DEPTH: 0
+  GIT_STRATEGY: clone
 
 .linux_aff3ct_base: &linux_aff3ct_base
   image: $CI_BASE_IMAGE
   tags:
     - x86
     - docker
+  # Without rules, a job is excluded from the merge request pipelines
+  rules:
+    - when: on_success
   before_script:
     - apt-get update
-    - apt-get install -y --no-install-recommends gcc g++ cmake git lcov
+    - apt-get install -y --no-install-recommends gcc g++ cmake git ccache lcov libjson-xs-perl  # JSON::XS: faster lcov
     - python --version  # For debugging
     - python -m venv venv
     - . venv/bin/activate
@@ -20,8 +47,14 @@ variables:
 .python_cache: &python_cache
   key: ${CI_PROJECT_PATH}
   paths:
-    - .cache/
-    - venv/
+    - .cache/  # pip
+
+# Object files of ccache, only for the jobs that compile (one cache per job: the compilation
+# options differ between build-linux and coverage-cpp)
+.ccache_cache: &ccache_cache
+  key: ccache-${CI_JOB_NAME}
+  paths:
+    - .ccache/
 
 stages:
   - linting
@@ -38,19 +71,22 @@ build-linux:
   <<: *linux_aff3ct_base
 
   cache:
-    <<: *python_cache
+    - *python_cache
+    - *ccache_cache
 
+  # Only the wheel is kept: the next jobs install it in their own environment
   artifacts:
-    name: streampu
+    name: streampu-wheel
     paths:
-      - streampu
-      - venv
+      - dist/
+    expire_in: 1 day
 
   script:
     - export CC="gcc"
     - export CXX="g++"
-    - python -m pip install ../pystreampu -v -Ccmake.define.SPU_OVERRIDE_VERSION=v0.0.0
-    - pwd && find
+    - python -m pip wheel . --no-deps -w dist -v -Ccmake.define.SPU_OVERRIDE_VERSION=v0.0.0
+    - ccache --show-stats
+    - ls -lh dist
 
 
 tests:
@@ -64,8 +100,10 @@ tests:
     - build-linux
 
   script:
+    - python -m pip install dist/*.whl  # wheel of build-linux
+    - python -m pip install pytest pytest-xdist  # not dependencies of streampu: install them explicitly
     - python -m pip show -f streampu
-    - pytest tests --junitxml=report.xml
+    - pytest tests -n $PYTEST_WORKERS --junitxml=report.xml
 
   artifacts:
     when: always
@@ -86,6 +124,7 @@ tutorial:
     - build-linux
 
   script:
+    - python -m pip install dist/*.whl  # wheel of build-linux
     - python scripts/check_tutorial.py
 
 # Check that the committed stubs of streampu._ext match the C++ bindings
@@ -101,6 +140,7 @@ stubs:
     - build-linux
 
   script:
+    - python -m pip install dist/*.whl  # wheel of build-linux
     - python -m pip install pybind11-stubgen==2.5.5 black==26.5.1 isort==8.0.1  # same as pyproject.toml
     - python -m pip list 2>/dev/null | grep -i -E "^(pybind11|pybind11-stubgen|black|isort) "
     - ./scripts/generate_stubs.sh
@@ -129,16 +169,18 @@ coverage-python:
     paths:
       - htmlcov/
       - coverage.lcov
+    expire_in: 1 week
   dependencies:
     - build-linux
   script:
-    - python -m pip install pytest-cov
-    - python -m pip install --verbose -e "$CI_PROJECT_DIR" -Ccmake.define.SPU_OVERRIDE_VERSION=v0.0.0
-    - python -c "import streampu; print('streampu loaded from:', streampu.__file__); print('streampu path:', list(streampu.__path__))"
-    - pytest tests --cov=streampu --cov-report=html --cov-report=term --cov-report=lcov
+    - python -m pip install dist/*.whl  # wheel of build-linux
+    - python -m pip install pytest-cov pytest-xdist
+    # -P: do not import the `streampu/` folder of the repository instead of the installed package
+    - python -P -c "import streampu; print('streampu loaded from:', streampu.__file__)"
+    - pytest tests -n $PYTEST_WORKERS --cov --cov-report=html --cov-report=term --cov-report=lcov
 
-  only:
-    - merge_requests
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 coverage-cpp:
   stage: coverage-linux
@@ -147,7 +189,8 @@ coverage-cpp:
   allow_failure: true
 
   cache:
-    <<: *python_cache
+    - *python_cache
+    - *ccache_cache
 
   artifacts:
     name: cpp-coverage-report
@@ -158,14 +201,13 @@ coverage-cpp:
     reports:
       junit: report-cpp.xml
   script:
-    - python -m pip install lcov-cobertura
+    - python -m pip install lcov-cobertura pytest pytest-xdist
     - export CXX="g++"
-    - export CFLAGS="-g -Wall -funroll-loops -fvisibility=hidden -fvisibility-inlines-hidden -coverage -ftest-coverage -fprofile-arcs"
-    - export LFLAGS="-coverage -ftest-coverage -fprofile-arcs"
+    - export CFLAGS="-g -Wall -funroll-loops -fvisibility=hidden -fvisibility-inlines-hidden"  # coverage flags: PYSTREAMPU_COVERAGE
     - pwd
     - ./ci/coverage-cpp-linux.sh
-  only:
-    - merge_requests
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 isort:
   stage: linting
@@ -208,24 +250,21 @@ build-wheels-linux:
       entrypoint: ["env", "-u", "DOCKER_HOST"]
       command: ["dockerd-entrypoint.sh"]
   variables:
+    <<: *full_history
     NO_PROXY: "docker"
     DOCKER_HOST: tcp://docker:2375/
     DOCKER_DRIVER: overlay2
     # See https://github.com/docker-library/docker/pull/166
     DOCKER_TLS_CERTDIR: ""
+  # One job per Python version (3.14t: free-threaded, without GIL). The other platforms
+  # (macOS, Windows, Linux aarch64) are built by GitHub Actions (.github/workflows/wheels.yml)
   parallel:
     matrix:
-      - ARCHS: ["x86_64"] # aarch64
-        PYTHON_TYPE: ["cp"]
-        PYTHON_VERSION: ["38", "39", "310", "311", "312", "313"]
-#      - ARCHS: ["x86_64"]
-#        PYTHON_TYPE: ["pp"]
-#        PYTHON_VERSION: ["38", "39", "310"]
+      - PYTHON_VERSION: ["cp310", "cp311", "cp312", "cp313", "cp314", "cp314t"]
   script:
     - curl -sSL https://get.docker.com/ | sh
-    - python -m pip install cibuildwheel==2.21.3
-    - python -m pip install twine
-    - CIBW_BUILD="$PYTHON_TYPE$PYTHON_VERSION-*" cibuildwheel --platform linux  --archs $ARCHS --output-dir wheelhouse
+    - python -m pip install cibuildwheel==4.3.5
+    - CIBW_BUILD="$PYTHON_VERSION-*" cibuildwheel --platform linux --archs x86_64 --output-dir wheelhouse
   artifacts:
     paths:
       - wheelhouse/
@@ -234,21 +273,38 @@ build-wheels-linux:
   only:
     - tags
 
-testpypi:
-  stage: deploy
+# Build the source distribution, then build and test the package from it alone (outside of
+# the repository, without git), as pip does on a platform without wheels
+sdist:
+  stage: build-wheels
   <<: *linux_aff3ct_base
-
-  needs:
-    - job: build-wheels-linux
-      artifacts: true
+  variables:
+    <<: *full_history
 
   script:
-    - python -m pip install twine
-    - python -m twine upload --repository-url https://test.pypi.org/legacy/ --verbose wheelhouse/* -u $TWINE_USERNAME -p $TWINE_PASSWORD
-    #-python3 -m twine ... ?
+    - python -m pip install build
+    - SPU_TAG=$(git -C lib/streampu describe --tags --abbrev=0 2>/dev/null || echo unknown)
+    - SPU_SET=$(grep -oP 'SPU_OVERRIDE_VERSION = "\K[^"]+' pyproject.toml)
+    - test "$SPU_TAG" = "$SPU_SET" || echo "WARNING - StreamPU submodule is $SPU_TAG but pyproject.toml says $SPU_SET (SPU_OVERRIDE_VERSION)"
+    - python -m build --sdist --outdir dist
+    - ls -lh dist
+    - mkdir -p /tmp/from-sdist && tar xzf dist/*.tar.gz -C /tmp/from-sdist
+    - python -m venv /tmp/venv-sdist
+    - /tmp/venv-sdist/bin/python -m pip install --upgrade pip pytest
+    - /tmp/venv-sdist/bin/python -m pip install dist/*.tar.gz
+    - cd /tmp && /tmp/venv-sdist/bin/pytest /tmp/from-sdist/streampu-*/tests
 
-  only:
-    - tags
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Publication on (Test)PyPI is done by the GitHub mirror (.github/workflows/wheels.yml),
+# so that a single origin uploads each version.
 
 
 # ---------------------------------------------------------------------------

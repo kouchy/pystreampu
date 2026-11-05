@@ -74,6 +74,8 @@ else()
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/lib/streampu/include/streampu.hpp")
         option(SPU_COMPILE_STATIC_LIB "" ON)
         option(SPU_COMPILE_SHARED_LIB "" OFF)
+        # The StreamPU tests are not needed (and not shipped in the sdist)
+        option(SPU_TESTS "" OFF)
         add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lib/streampu/)
 
         message(STATUS "Sub-project found: streampu")
@@ -92,6 +94,17 @@ include_directories(_ext PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set_target_properties(_ext PROPERTIES OUTPUT_NAME _ext
                            POSITION_INDEPENDENT_CODE ON
                            PRIVATE VERSION_INFO=${VERSION_INFO}) #  set -fpic
+
+# Code coverage of the wrapper (ci/coverage-cpp-linux.sh): only `_ext` is instrumented and
+# compiled without optimization; StreamPU stays optimized, so that the tests run faster.
+option(PYSTREAMPU_COVERAGE "Instrument the wrapper (_ext) for gcov code coverage" OFF)
+if(PYSTREAMPU_COVERAGE)
+    target_compile_options(_ext PRIVATE -O0 -g --coverage)
+    target_link_options(_ext PRIVATE --coverage)
+    if(TARGET spu-obj)
+        target_compile_options(spu-obj PRIVATE -O2)
+    endif()
+endif()
 
 
 # Install pybind11 headers

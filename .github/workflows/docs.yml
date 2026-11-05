@@ -1,0 +1,52 @@
+# Build the documentation and publish it with GitHub Pages from the default branch.
+#
+# The documentation does not need the compiled package: mkdocstrings reads the Python
+# sources and the committed type stubs of streampu._ext (scripts/generate_stubs.sh).
+# Keep the package list in sync with the `docs` extra of pyproject.toml.
+#
+# One-time setup on GitHub: Settings > Pages > Source: "GitHub Actions".
+name: docs
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install mkdocs mkdocs-material "mkdocstrings[python]" pymdown-extensions
+          mkdocs build --strict --site-dir site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

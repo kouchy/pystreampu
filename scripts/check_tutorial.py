@@ -511,7 +511,7 @@ def profiling_probes(r: Report):
 
 
 # ---------------------------------------------------------------------------
-# Guides - Writing a module in C++ / plugins
+# Guides - Writing a module in C++
 # ---------------------------------------------------------------------------
 @check("guides/cpp_module.md - Use the module (needs examples/custom_cpp_module/build)")
 def cpp_module(r: Report):
@@ -526,12 +526,6 @@ def cpp_module(r: Report):
     x = spu.array([1, 2, 3, 4], dtype=spu.float64)
     y = mdl.add_one(x)
     r.compare("repr(y)", repr(y), "socket([[2. 3. 4. 5.]], dtype=float64, name=output, task=Adder.add_one)")
-
-
-@check("guides/plugins.md - How plugins are discovered")
-def plugins(r: Report):
-    r.compare("type(spu.plugins)", type(spu.plugins), dict)
-    r.info("spu.plugins:", spu.plugins)
 
 
 # ---------------------------------------------------------------------------

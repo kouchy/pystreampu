@@ -10,7 +10,7 @@ source env/bin/activate
 ## Install from the sources
 Clone the repository
 ```
-git clone --recursive https://gitlab.bordeaux-inp.fr/rtajan/pystreampu.git
+git clone --recursive https://github.com/rtajan/pystreampu.git
 ```
 then install the python interface of `StreamPU` using `pip`
 ```
@@ -34,7 +34,7 @@ and set `CONTENT1` and `CONTENT2` values.
 
 ## Run tests
 ```
-pytest --pyargs streampu
+pytest tests  # from the root of the repository
 ```
 
 ## Install for development

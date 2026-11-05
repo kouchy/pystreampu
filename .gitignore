@@ -450,3 +450,7 @@ durations_*.csv
 
 # Working notes, not part of the repository
 PLAN.md
+
+# Other local virtual environments (env314/...)
+/env*/
+/.ccache/

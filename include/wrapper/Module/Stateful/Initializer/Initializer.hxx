@@ -36,7 +36,7 @@ wrap_initializer_internal(py::handle scope, const std::string& name)
                                                    py::list lst_out;
                                                    for (auto& v : init_data)
                                                        lst_out.append(
-                                                         py::array{ (ssize_t)v.size(), (T*)v.data(), py::cast(self) });
+                                                         py::array{ (py::ssize_t)v.size(), (T*)v.data(), py::cast(self) });
                                                    return lst_out;
                                                });
     py_initializer_class.def_property(
