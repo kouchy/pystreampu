@@ -9,6 +9,10 @@ workflow:
     - if: $CI_COMMIT_TAG
 
 variables:
+  # Fresh and full clone in every job: the shallow fetches of the runner failed with
+  # "missing blob object" after an object was restored on the server (full clones work)
+  GIT_STRATEGY: clone
+  GIT_DEPTH: 0
   GIT_SUBMODULE_STRATEGY: recursive
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   CI_BASE_IMAGE: "python:3.12"
@@ -187,6 +191,11 @@ coverage-cpp:
   <<: *linux_aff3ct_base
   timeout: 2h
   allow_failure: true
+  variables:
+    # With a base directory, ccache makes the paths of the compilation relative, and gcov
+    # then writes its .gcda files relative to the folder of the tests, not in the build
+    # folder. The paths of the job do not change, so the cache still works without it.
+    CCACHE_BASEDIR: ""
 
   cache:
     - *python_cache
