@@ -17,13 +17,14 @@ a C++ compiler (Visual Studio) and CMake.
 ## Versions
 
 Each minor version of pyStreamPU embeds one minor version of
-[StreamPU](https://github.com/aff3ct/streampu): pyStreamPU 1.1.x follows StreamPU 1.9.x.
+[StreamPU](https://github.com/aff3ct/streampu): pyStreamPU 1.2.x follows StreamPU 1.10.x.
 pyStreamPU also has releases of its own, so each row gives the first version of
 pyStreamPU that embeds a version of StreamPU; the following versions of pyStreamPU embed
 it too, until the next row.
 
 | pyStreamPU (from) | StreamPU |
 |-------------------|----------|
+| 1.2.0             | 1.10.0   |
 | 1.1.4             | 1.9.4    |
 | 1.1.3             | 1.9.3    |
 | 1.1.2             | 1.9.2    |
