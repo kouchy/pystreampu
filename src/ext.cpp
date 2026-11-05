@@ -97,6 +97,18 @@ PYBIND11_MODULE(_ext, m, py::mod_gil_not_used())
     py::module_ submod_sts = m.def_submodule("sts");
     pyspu::wrapper::wrap_stateless(submod_sts); // TODO : change python submodule
 
+    // Julia modules: only when StreamPU is compiled with Julia (-DSPU_LINK_JULIA=ON)
+#ifdef SPU_JULIA
+    m.attr("has_julia") = true;
+    py::module_ submod_jl = m.def_submodule("jl");
+    pyspu::wrapper::wrap_julia(submod_jl);
+    pyspu::wrapper::wrap_module_julia(submod_jl);
+    pyspu::wrapper::wrap_stateless_julia(submod_jl);
+    pyspu::wrapper::wrap_stateful_julia(submod_jl);
+#else
+    m.attr("has_julia") = false;
+#endif
+
     py::module_ submod_arr = m.def_submodule("arr");
     pyspu::wrapper::wrap_array(submod_arr);
 
