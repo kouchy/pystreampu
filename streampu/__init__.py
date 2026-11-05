@@ -4,13 +4,6 @@ r"""StreamPU package.
 The streampu package provides interfaces for the StreamPU C++ library.
 """
 
-import sys
-
-if sys.version_info < (3, 10):
-    from importlib_metadata import entry_points
-else:
-    from importlib.metadata import entry_points
-
 from ._context_manager import _Context, _context_manager  # isort:skip
 
 # Stack of hidden modules
@@ -37,6 +30,7 @@ from streampu._ext.ite import Iterator
 from streampu._ext.ran import Range
 from streampu._ext.reporter import Reporter, Reporter_probe
 from streampu._ext.set import Set
+from streampu._ext.sfl import Stateful_core
 from streampu._ext.slp import Sleeper
 from streampu._ext.swi import Switcher
 from streampu._ext.terminal import Terminal, Terminal_dump, Terminal_std
@@ -108,8 +102,3 @@ from ._task import Task
 from ._uop import UType, abs, bitwise_not, cast, neg, uop
 from ._version import version as __version__
 from .utils import get_cmake_dirs
-
-plugins = {}
-_plugins = entry_points(group="streampu.plugins")
-for _ in _plugins:
-    plugins[_.name] = _.load()

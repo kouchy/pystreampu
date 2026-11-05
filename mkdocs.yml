@@ -1,10 +1,10 @@
 site_name: pyStreamPU
 site_description: Python interface of the StreamPU DSEL for streaming applications
-site_url: https://rtajan.pages.bordeaux-inp.fr/pystreampu/
+site_url: https://rtajan.github.io/pystreampu/
 
-repo_url: https://gitlab.bordeaux-inp.fr/rtajan/pystreampu
+repo_url: https://github.com/rtajan/pystreampu
 repo_name: rtajan/pystreampu
-edit_uri: -/edit/develop/docs/
+edit_uri: edit/develop/docs/
 
 nav:
   - Home: index.md
@@ -20,7 +20,6 @@ nav:
       - Writing a module in C++: guides/cpp_module.md
       - Measuring performance: guides/profiling.md
       - Visualizing a graph: guides/visualize.md
-      - Creating a plugin: guides/plugins.md
   - Concepts: concepts.md
   - API reference:
       - reference/index.md

@@ -1,25 +1,64 @@
 [build-system]
-requires = ["scikit-build-core", "setuptools_scm", "pybind11==3.0.4"]
+requires = ["scikit-build-core>=1.0", "setuptools_scm", "pybind11==3.0.4"]
 build-backend = "scikit_build_core.build"
 
 [project]
 name = "streampu"
 authors = [{name = "AFF3CT Team", email= "aff3ct-contact@inria.fr"}]
-requires-python = ">=3.8"
-description = "Python wrapper for StreamPU library."
-license = {file = "LICENSE"}
+requires-python = ">=3.10"
+description = "Python interface of StreamPU, a DSEL for high-throughput, low-latency streaming applications on multicore CPUs"
 readme = "README.md"
+# The wheels also contain third-party code: StreamPU, cpptrace and nlohmann/json (MIT),
+# pybind11 (BSD-3-Clause) and rang (Unlicense), see THIRD_PARTY_NOTICES.md
+license = "MIT AND BSD-3-Clause AND Unlicense"
+license-files = [
+  "LICENSE",
+  "THIRD_PARTY_NOTICES.md",
+  "lib/streampu/LICENSE",
+  "lib/streampu/lib/cpptrace/LICENSE",
+  "lib/streampu/lib/json/LICENSE.MIT",
+  "lib/streampu/lib/rang/LICENSE",
+  "lib/pybind11/LICENSE",
+]
+keywords = [
+  "streaming", "dataflow", "task graph", "pipeline", "multicore", "parallelism",
+  "software-defined radio", "SDR", "DSEL", "StreamPU", "AFF3CT",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Telecommunications Industry",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Programming Language :: C++",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Free Threading :: 2 - Beta",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Topic :: Communications",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: System :: Hardware :: Symmetric Multi-processing",
+]
 dependencies = [
-    "importlib_metadata",
     "numpy",
-    "pybind11==3.0.4",
+    # Needed to build custom C++ modules (see `streampu.get_cmake_dirs()`). They must use
+    # the same pybind11 ABI as streampu, which is stable within the 3.0 series
+    # (PYBIND11_INTERNALS_VERSION 11); streampu itself is built with 3.0.4 (build-system).
+    "pybind11>=3.0.4,<3.1",
 ]
 dynamic = ["version"]
 
 [project.urls]
-Documentation = "https://rtajan.pages.bordeaux-inp.fr/pystreampu/"
-Source = "https://gitlab.bordeaux-inp.fr/rtajan/pystreampu"
-Issues = "https://gitlab.bordeaux-inp.fr/rtajan/pystreampu/-/issues"
+Documentation = "https://rtajan.github.io/pystreampu/"
+Source = "https://github.com/rtajan/pystreampu"
+Issues = "https://github.com/rtajan/pystreampu/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -28,6 +67,7 @@ dev = [
   "isort==8.0.1",
   "black==26.5.1",
   "pytest>=6.0",
+  "pytest-xdist",
   "pybind11-stubgen==2.5.5",
   "pre-commit",
 ]
@@ -43,8 +83,8 @@ minversion = "6.0"
 testpaths = ["tests"]
 addopts = ["--import-mode=importlib"]
 
+# The Python versions come from requires-python (3.10 to 3.14, and 3.14t without GIL)
 [tool.cibuildwheel]
-manylinux-x86_64-image = "manylinux2014"
 before-all = "uname -a"
 build-verbosity = 3
 test-requires = "pytest"
@@ -53,10 +93,14 @@ test-command = "pytest {package}/tests --junitxml=./streampu/report.xml"
 skip = ["*-musllinux*"]
 
 [tool.cibuildwheel.macos]
-archs = ["x86_64", "universal2", "arm64"]
+archs = ["x86_64", "arm64"]
+environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
 repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}"
 
-# On an Linux Intel runner with qemu installed, build Intel and ARM wheels
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+
+# Built on native runners (x86_64: GitLab CI, aarch64: GitHub Actions)
 [tool.cibuildwheel.linux]
 archs = ["x86_64", "aarch64"]
 repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
@@ -66,11 +110,34 @@ repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
 # folder mixes the extension modules built for different Python versions
 build-dir = "build/{wheel_tag}"
 cmake.define.CMAKE_CXX_FLAGS ="-Wall -funroll-loops -fvisibility=hidden -fvisibility-inlines-hidden"
+# Version of the StreamPU submodule (lib/streampu): an sdist has no .git folder to read it
+# from. Update it with the submodule (checked by the CI job `sdist`).
+cmake.define.SPU_OVERRIDE_VERSION = "v1.9.0"
 wheel.packages = ["streampu"]
-wheel.license-files = ["LICENSE"]
 wheel.install-dir = "streampu"
 metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
-sdist.include = ["streampu/_version.py"]
+sdist.include = [
+  "streampu/_version.py",
+  "lib/pybind11/LICENSE",  # pybind11 itself comes from pip, only its license is bundled
+]
+# Not needed to build the package: local environments and outputs, documentation and tests
+# of the third-party libraries
+sdist.exclude = [
+  "/env*/",
+  "/venv*/",
+  "/build/",
+  "/dist/",
+  "/site/",
+  "/htmlcov/",
+  "/code_coverage_*/",
+  "/lib/pybind11/",
+  "/lib/streampu/docs/",
+  "/lib/streampu/tests/",
+  "/lib/streampu/lib/json/docs/",
+  "/lib/streampu/lib/json/tests/",
+  "/lib/streampu/lib/json/tools/",
+  "/lib/streampu/lib/cpptrace/test/",
+]
 
 [tool.setuptools_scm]  # Section required
 write_to = "streampu/_version.py"
@@ -88,19 +155,26 @@ profile = "black"
 [tool.black]
 line-length = 120
 # Explicit target: the oldest supported version. Black formats for the features common to
-# all its targets, so this is the same formatting as listing every version >= 3.8, without
+# all its targets, so this is the same formatting as listing every version >= 3.10, without
 # the warning raised when a target is newer than the running interpreter.
-target-version = ["py38"]
+target-version = ["py310"]
 
 [tool.coverage.run]
+# Measure the installed package (the CI installs the wheel), not the `streampu/` folder of
+# the repository, which `--cov=streampu` would select because it exists
+source_pkgs = ["streampu"]
 omit = [
-  "streampu/_version.py",
-  "streampu/_plugins.py",
+  "*/streampu/_version.py",
+]
 
+[tool.coverage.paths]
+# Report the installed files under their path in the repository
+source = [
+  "streampu/",
+  "*/site-packages/streampu/",
 ]
 
 [tool.coverage.report]
 omit = [
-  "streampu/_version.py",
-  "streampu/_plugins.py",
+  "*/streampu/_version.py",
 ]

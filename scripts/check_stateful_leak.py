@@ -28,7 +28,7 @@ def current_rss_kb() -> int:
 
 def child(kind: str, n: int, size: int) -> None:
     import streampu as spu
-    from streampu._ext.sfl import Stateful_core
+    from streampu import Stateful_core
 
     class Dummy(Stateful_core):
         def __init__(self):

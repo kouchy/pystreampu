@@ -107,7 +107,7 @@ Python module with different Python interpreters and numbers of threads.
 
 A `Stateless` module cannot hold parameters or data of its own. When the processing
 depends on parameters or must keep data between two executions, derive a class from
-`Stateful_core`. The example below keeps one sample out of `F`; `F` is the state of the
+`spu.Stateful_core`. The example below keeps one sample out of `F`; `F` is the state of the
 module:
 
 ```python
@@ -134,10 +134,6 @@ Three rules make such a module work on several threads:
    tasks, sockets and codelets itself. `clone()` must therefore create an instance of
    the same class, `type(self)`, without calling `__init__` (which would create the
    tasks a second time), and only copy the Python state.
-
-!!! note
-    `Stateful_core` is imported from `streampu._ext.sfl`: this part of the API may still
-    evolve.
 
 The script `examples/custom_python_module/custom_python_module.py` uses this module in
 a multithreaded sequence and measures its duration for different numbers of threads.

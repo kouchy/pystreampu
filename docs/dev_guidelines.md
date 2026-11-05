@@ -41,7 +41,7 @@ scripts/apply_clang_format.sh
 ## Tests
 
 ```bash
-pytest --pyargs streampu
+pytest tests  # from the root of the repository, with the package installed
 ```
 
 ## Type stubs of the C++ bindings

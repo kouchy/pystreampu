@@ -1,7 +1,7 @@
-# pyStreamPU
+# StreamPU
 
-[![pipeline](https://gitlab.bordeaux-inp.fr/rtajan/pystreampu/badges/develop/pipeline.svg)](https://gitlab.bordeaux-inp.fr/rtajan/pystreampu/-/pipelines?ref=develop)
-[![documentation](https://img.shields.io/badge/docs-GitLab%20Pages-blue)](https://rtajan.pages.bordeaux-inp.fr/pystreampu/)
+[![wheels](https://github.com/rtajan/pystreampu/actions/workflows/wheels.yml/badge.svg)](https://github.com/rtajan/pystreampu/actions/workflows/wheels.yml)
+[![documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://rtajan.github.io/pystreampu/)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 Python bindings for [StreamPU](https://github.com/aff3ct/streampu), a C++ Domain
@@ -59,7 +59,7 @@ print(out)
 Clone the repository (with its submodules)
 
 ```bash
-git clone --recursive https://gitlab.bordeaux-inp.fr/rtajan/pystreampu.git
+git clone --recursive https://github.com/rtajan/pystreampu.git
 ```
 
 then install the Python interface of `StreamPU` using `pip`
@@ -93,16 +93,17 @@ This installs the linting, testing and documentation dependencies.
 
 ## Run tests
 
-Testing the `streampu` package requires `pytest`, run the following command:
+Testing the `streampu` package requires `pytest`. From the root of the repository, with
+the package installed:
 
 ```bash
-pytest --pyargs streampu
+pytest tests
 ```
 
 ## Documentation
 
 The documentation (tutorial, how-to guides, concepts and API reference) is available
-at **<https://rtajan.pages.bordeaux-inp.fr/pystreampu/>**. Its sources are in `docs/`; to build it locally:
+at **<https://rtajan.github.io/pystreampu/>**. Its sources are in `docs/`; to build it locally:
 
 ```bash
 pip install './pystreampu[docs]'
@@ -111,9 +112,9 @@ mkdocs serve
 
 ## Contributing
 
-The main repository is
-[gitlab.bordeaux-inp.fr/rtajan/pystreampu](https://gitlab.bordeaux-inp.fr/rtajan/pystreampu).
-Issues and merge requests are welcome; see `docs/dev_guidelines.md` for the coding
+The public repository is [github.com/rtajan/pystreampu](https://github.com/rtajan/pystreampu), a mirror of the
+development repository hosted at Bordeaux INP. Issues and pull requests are welcome on
+GitHub; see `docs/dev_guidelines.md` for the coding
 conventions.
 
 ## Citing

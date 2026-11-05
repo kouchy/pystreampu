@@ -11,7 +11,7 @@ package, generated from their docstrings. For explanations and examples, see the
 | [Operators](operators.md) | arithmetic, comparison, bitwise and unary operators, reductions |
 | [Modules](modules.md) | `Stateless`, `Stateful_core`, built-in modules, probes, reporters |
 | [Execution](execution.md) | `Sequence` and `Pipeline` |
-| [Tools](tools.md) | build helpers and plugins |
+| [Tools](tools.md) | helpers to build C++ extensions |
 
 !!! note "Classes implemented in C++"
     The core classes (`Socket`, `Task`, `Module`, `Stateless`, probes…) are implemented

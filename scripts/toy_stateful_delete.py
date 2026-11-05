@@ -20,7 +20,7 @@ import resource
 import sys
 
 import streampu as spu
-from streampu._ext.sfl import Stateful_core
+from streampu import Stateful_core
 
 faulthandler.enable()
 
