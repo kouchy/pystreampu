@@ -7,6 +7,16 @@ python3 -m venv env
 source env/bin/activate
 ```
 
+## Versions
+
+Each minor version of pyStreamPU embeds one minor version of
+[StreamPU](https://github.com/aff3ct/streampu): pyStreamPU 1.1.x follows StreamPU 1.9.x.
+
+| pyStreamPU | StreamPU |
+|------------|----------|
+| 1.1.1      | 1.9.1    |
+| 1.1.0      | 1.9.0    |
+
 ## Install from the sources
 Clone the repository
 ```
