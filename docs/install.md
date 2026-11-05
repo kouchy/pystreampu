@@ -7,6 +7,13 @@ python3 -m venv env
 source env/bin/activate
 ```
 
+## Pre-built packages
+
+Wheels are built for Linux (x86_64 and aarch64) and macOS (arm64 and x86_64), for
+Python 3.10 to 3.14 (including the free-threaded 3.14t). There are no wheels for Windows
+for now: on Windows, `pip` compiles the package from its source distribution, which needs
+a C++ compiler (Visual Studio) and CMake.
+
 ## Versions
 
 Each minor version of pyStreamPU embeds one minor version of
