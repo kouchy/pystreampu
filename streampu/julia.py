@@ -79,7 +79,7 @@ def eval(code: str) -> None:
 
     Raises:
         ImportError: if pyStreamPU is not compiled with Julia
-        RuntimeError: if the evaluation raises a Julia exception
+        spu.exceptions.RuntimeError: if the evaluation raises a Julia exception
     """
     _julia().eval(code)
 
@@ -92,7 +92,7 @@ def eval_file(path: Union[str, os.PathLike]) -> None:
 
     Raises:
         ImportError: if pyStreamPU is not compiled with Julia
-        RuntimeError: if the file cannot be read, or if its evaluation raises a Julia
-            exception
+        spu.exceptions.RuntimeError: if the file cannot be read, or if its evaluation raises a
+            Julia exception
     """
     _julia().eval_file(path)

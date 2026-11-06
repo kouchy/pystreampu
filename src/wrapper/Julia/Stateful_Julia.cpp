@@ -2,6 +2,7 @@
 
 #include "wrapper/Common/Tools/socket_creation.hpp"
 #include "wrapper/Julia/Julia.hpp"
+#include "wrapper/Julia/gc_region.hpp"
 
 namespace py = pybind11;
 using namespace py::literals;
@@ -52,13 +53,28 @@ pyspu::wrapper::wrap_stateful_julia(py::handle scope)
                      &Stateful_Julia::set_n_frames_per_wave,
                      "Number of frames processed by each call of the codelets (by default, all the frames).");
 
-    cls.def("create_state",
-            &Stateful_Julia::create_state,
-            "constructor"_a,
+    // The code that defines the type of a state is evaluated here, not by StreamPU: StreamPU 1.10.0
+    // evaluates the code of the codelets before the types of the states, so a codelet whose
+    // arguments are typed with a state type (`acc::Acc`) could not be defined. It also reports
+    // an error in this code at once.
+    cls.def(
+      "create_state",
+      [](Stateful_Julia& mdl, const std::string& constructor, const bool shared, const std::string& code)
+      {
+          if (!code.empty())
+          {
+              pyspu::wrapper::Julia_gc_unsafe_region gc_unsafe;
+              spu::tools::Julia::eval_string(code);
+              pyspu::wrapper::check_julia_exception("Julia error in the code of the state '" + constructor + "'");
+          }
+          mdl.create_state(constructor, shared);
+      },
+      "constructor"_a,
             "shared"_a = false,
             "code"_a = "",
             R"pbdoc(
-        Add a state to the module. Create the states before the codelets.
+        Add a state to the module. Create the states before the codelets. The code that
+        defines the type of the state is evaluated at once (in the `Main` module of Julia).
 
         Args:
             constructor (str): Julia expression that builds the state, e.g. `"Acc(0)"`
@@ -72,13 +88,19 @@ pyspu::wrapper::wrap_stateful_julia(py::handle scope)
       [](Stateful_Julia& mdl, const std::string& constructor, const py::object& path, const bool shared)
       {
           const std::string filename = py::str(py::module_::import("os").attr("fspath")(path));
-          mdl.create_state_file(constructor, shared, filename);
+          {
+              pyspu::wrapper::Julia_gc_unsafe_region gc_unsafe;
+              spu::tools::Julia::eval_file(filename); // see create_state
+              pyspu::wrapper::check_julia_exception("Julia error in '" + filename + "'");
+          }
+          mdl.create_state(constructor, shared);
       },
       "constructor"_a,
       "path"_a,
       "shared"_a = false,
       R"pbdoc(
-        Add a state to the module, whose type is defined in a `.jl` file.
+        Add a state to the module, whose type is defined in a `.jl` file (evaluated at once,
+        in the `Main` module of Julia).
 
         Args:
             constructor (str): Julia expression that builds the state

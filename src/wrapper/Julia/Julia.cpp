@@ -22,7 +22,7 @@ pyspu::wrapper::check_julia_exception(const std::string& context)
         if (text != nullptr && jl_is_string(text)) message += ": " + std::string(jl_string_ptr(text));
         jl_exception_clear();
     }
-    throw std::runtime_error(message);
+    throw spu::tools::runtime_error(std::move(message)); // spu.exceptions.RuntimeError, like the errors of StreamPU
 }
 
 std::string
@@ -78,7 +78,7 @@ pyspu::wrapper::wrap_julia(py::handle scope)
             code (str): Julia code
 
         Raises:
-            RuntimeError: if the evaluation raises a Julia exception
+            spu.exceptions.RuntimeError: if the evaluation raises a Julia exception
     )pbdoc");
 
     julia_class.def_static(
@@ -99,8 +99,8 @@ pyspu::wrapper::wrap_julia(py::handle scope)
             path (str | os.PathLike): path of the `.jl` file
 
         Raises:
-            RuntimeError: if the file cannot be read, or if its evaluation raises a Julia
-                exception
+            spu.exceptions.RuntimeError: if the file cannot be read, or if its evaluation
+                raises a Julia exception
     )pbdoc");
 }
 

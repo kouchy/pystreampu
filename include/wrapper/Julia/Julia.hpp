@@ -26,7 +26,7 @@ wrap_stateless_julia(py::handle scope);
 void
 wrap_stateful_julia(py::handle scope);
 
-// Throw a Python RuntimeError if the last call to the Julia C API raised a Julia exception
+// Throw a spu::tools::runtime_error (Python: spu.exceptions.RuntimeError) if the last call to the Julia C API raised a Julia exception
 // (the C API does not throw: it returns NULL and keeps the exception).
 void
 check_julia_exception(const std::string& context);
