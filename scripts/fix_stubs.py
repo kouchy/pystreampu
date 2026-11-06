@@ -105,9 +105,13 @@ def fix_julia(source: str, has_jl_stubs: bool) -> str:
     if has_jl_stubs:
         # The text is not formatted yet (isort and black run afterwards): search the names
         # in the whole statements
-        imports = re.search(r"^from \. import \(?([^)]*?)\)?$", source, flags=re.M | re.S)
-        if imports and not re.search(r"\bjl\b", imports.group(1)):
-            source = source.replace(imports.group(0), imports.group(0).replace("import (", "import (jl, ", 1), 1)
+        # `from . import x` (one per line, or grouped in parentheses): isort merges and sorts
+        # them afterwards, so adding a line is enough
+        imported = re.findall(r"^from \. import \(?([^)\n]*(?:\n[^)]*)?)\)?", source, flags=re.M)
+        if not any(re.search(r"\bjl\b", names) for names in imported):
+            first = re.search(r"^from \. import ", source, flags=re.M)
+            if first:
+                source = source[: first.start()] + "from . import jl\n" + source[first.start() :]
         names = re.search(r"^__all__: list\[str\] = \[([^\]]*)\]", source, flags=re.M)
         if names and not re.search(r"[\"']jl[\"']", names.group(1)):
             # Same order as pybind11-stubgen: sorted
