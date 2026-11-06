@@ -20,6 +20,8 @@
 #include "wrapper/Tools/Signal_handler/Signal_handler.hpp"
 #include "wrapper/Tools/Terminal/Terminal.hpp"
 
+#include "wrapper/Julia/Julia.hpp"
+
 #include "wrapper/Runtime/Pipeline/Pipeline.hpp"
 #include "wrapper/Runtime/Sequence/Sequence.hpp"
 #include "wrapper/Runtime/Socket/Socket.hpp"

@@ -1,4 +1,5 @@
 #include "wrapper/Runtime/Sequence/Sequence.hpp"
+#include "wrapper/Julia/gc_region.hpp"
 #include "wrapper/Common/pybind11_common.h"
 
 #include <atomic>
@@ -164,6 +165,7 @@ py::return_value_policy::take_ownership);
                            self.exec(
                             [&](const std::vector<const int*>& statuses) -> bool
                             {
+                                pyspu::wrapper::Julia_gc_safe_region gc_safe; // see gc_region.hpp
                                 py::gil_scoped_acquire gil;
                                 if (statuses.back() != nullptr || force_report)
                                    terminal.temp_report(stream);
@@ -187,6 +189,7 @@ py::return_value_policy::take_ownership);
                            self.exec(
                             [&](const std::vector<const int*>& statuses) -> bool
                             {
+                                pyspu::wrapper::Julia_gc_safe_region gc_safe; // see gc_region.hpp
                                 py::gil_scoped_acquire gil;
                                 if (statuses.back() != nullptr || force_report)
                                    terminal.temp_report(stream);

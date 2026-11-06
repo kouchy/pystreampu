@@ -1,6 +1,8 @@
 #include "wrapper/Module/Stateless/Stateless.hpp"
 #include "wrapper/Common/Tools/Type/Type.hpp"
 #include "wrapper/Common/Tools/type_functions.h"
+#include "wrapper/Common/Tools/python_codelet.hpp"
+#include <pybind11/typing.h>
 
 namespace py = pybind11;
 using namespace py::literals;
@@ -81,7 +83,11 @@ pyspu::wrapper::wrap_stateless(py::handle scope)
     )pbdoc",
       py::return_value_policy::reference);
 
-    stateless_class.def("create_codelet", &Stateless::create_codelet, "task"_a, "codelet"_a, R"pbdoc(
+    stateless_class.def("create_codelet",
+      [](Stateless& mdl, spu::runtime::Task& task,
+         const py::typing::Callable<int(spu::module::Module&, spu::runtime::Task&, size_t)>& codelet)
+      { mdl.create_codelet(task, pyspu::wrapper::python_codelet(codelet)); },
+      "task"_a, "codelet"_a, R"pbdoc(
         Set the function executed by a task (its codelet).
 
         The codelet is called as `codelet(module, task, frame_id)` and must return 0 on

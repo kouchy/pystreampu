@@ -1,8 +1,11 @@
 # A single pipeline per push: the merge request pipeline when a merge request is open for
 # the branch, the branch pipeline otherwise (and the tag pipelines)
+# (and the pipelines run by hand: Build > Pipelines > Run pipeline, even for a branch with
+# an open merge request)
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
       when: never
     - if: $CI_COMMIT_BRANCH
@@ -20,6 +23,9 @@ variables:
   # Wheels and publication (jobs build-wheels-* and publish) are disabled for now: set
   # BUILD_WHEELS to "true" (project variable, or when running a pipeline) to enable them
   BUILD_WHEELS: "false"
+  # Set JULIA_ONLY to "true" when running a pipeline by hand (Build > Pipelines > Run
+  # pipeline) to run only the job `julia`
+  JULIA_ONLY: "false"
   # ccache: the object files are reused from one pipeline to the next (GitLab cache)
   CCACHE_DIR: "$CI_PROJECT_DIR/.ccache"
   CCACHE_BASEDIR: "$CI_PROJECT_DIR"
@@ -43,6 +49,8 @@ variables:
   # pipelines only run `update-streampu`.
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $JULIA_ONLY == "true"
       when: never
     - when: on_success
   before_script:
@@ -162,6 +170,43 @@ stubs:
     name: stubs-diff
     paths:
       - stubs.diff
+    expire_in: 1 week
+
+
+# Build pyStreamPU with Julia (-C cmake.define.SPU_LINK_JULIA=ON) and run all the tests,
+# including tests/julia (skipped by the other jobs), and the example of the Julia modules.
+# Julia is installed with juliaup.
+julia:
+  stage: tests
+  <<: *linux_aff3ct_base
+  allow_failure: true
+  timeout: 2h
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "web"
+  variables:
+    JULIA_CHANNEL: "1.11"
+  cache:
+    - *python_cache
+    - *ccache_cache
+  script:
+    - curl -fsSL https://install.julialang.org | sh -s -- --yes --default-channel "$JULIA_CHANNEL" --path "$HOME/.juliaup"
+    - export PATH="$HOME/.juliaup/bin:$PATH"
+    - julia --version
+    - export JULIA_BINDIR=$(julia --startup-file=no -e 'print(Sys.BINDIR)')
+    - python -m pip install pytest pytest-xdist
+    - python -m pip install . -v -Ccmake.define.SPU_LINK_JULIA=ON -Ccmake.define.SPU_OVERRIDE_VERSION=v0.0.0
+    - ccache --show-stats
+    # -P: import the installed package, not the streampu/ folder of the repository
+    - python -P -c "import streampu as spu; assert spu.julia.available(), 'built without Julia'"
+    - pytest tests -n $PYTEST_WORKERS --junitxml=report-julia.xml
+    - python examples/custom_julia_module/julia_module.py
+  artifacts:
+    when: always
+    reports:
+      junit: report-julia.xml
     expire_in: 1 week
 
 
@@ -445,7 +490,7 @@ update-streampu:
     - docker
   before_script:
     - python -m pip install --upgrade pip
-    - python -m pip install mkdocs mkdocs-material "mkdocstrings[python]" pymdown-extensions
+    - python -m pip install mkdocs mkdocs-material "mkdocstrings[python]" "pymdown-extensions<12"  # see pyproject.toml
 
 # Check that the documentation builds on merge requests
 docs:

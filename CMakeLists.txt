@@ -99,6 +99,16 @@ set_target_properties(_ext PROPERTIES OUTPUT_NAME _ext
 
 # Code coverage of the wrapper (ci/coverage-cpp-linux.sh): only `_ext` is instrumented and
 # compiled without optimization; StreamPU stays optimized, so that the tests run faster.
+# Julia modules (-DSPU_LINK_JULIA=ON): StreamPU finds Julia and links `_ext` with libjulia.
+# The installed extension must find libjulia at import time: add its folder to the RPATH
+# (JULIA_LIBRARY is a cache variable set by FindJulia in the StreamPU sub-project).
+if(SPU_LINK_JULIA AND JULIA_LIBRARY)
+    get_filename_component(JULIA_LIBRARY_DIR "${JULIA_LIBRARY}" DIRECTORY)
+    message(STATUS "Julia library folder added to the RPATH of _ext: ${JULIA_LIBRARY_DIR}")
+    set_property(TARGET _ext APPEND PROPERTY BUILD_RPATH "${JULIA_LIBRARY_DIR}")
+    set_property(TARGET _ext APPEND PROPERTY INSTALL_RPATH "${JULIA_LIBRARY_DIR}")
+endif()
+
 option(PYSTREAMPU_COVERAGE "Instrument the wrapper (_ext) for gcov code coverage" OFF)
 if(PYSTREAMPU_COVERAGE)
     target_compile_options(_ext PRIVATE -O0 -g --coverage)

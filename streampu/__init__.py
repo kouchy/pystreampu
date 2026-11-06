@@ -102,3 +102,15 @@ from ._task import Task
 from ._uop import UType, abs, bitwise_not, cast, neg, uop
 from ._version import version as __version__
 from .utils import get_cmake_dirs
+
+# Julia modules: only when pyStreamPU is compiled with Julia (see streampu/julia.py)
+from . import julia  # isort:skip
+
+if julia.available():
+    from streampu._ext.jl import Julia, Module_Julia, Stateful_Julia, Stateless_Julia  # isort:skip
+else:
+
+    def __getattr__(name):
+        if name in julia._CLASSES:
+            raise ImportError(f"streampu.{name} is not available: {julia._NOT_AVAILABLE}")
+        raise AttributeError(f"module 'streampu' has no attribute '{name}'")
