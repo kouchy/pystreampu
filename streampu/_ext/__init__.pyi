@@ -19,6 +19,7 @@ from . import (
     ini,
     interfaces,
     ite,
+    jl,
     prb,
     ran,
     rang,
@@ -52,6 +53,7 @@ __all__: list[str] = [
     "float32",
     "float64",
     "get_hardware_concurrency",
+    "has_julia",
     "help",
     "inc",
     "ini",
@@ -61,6 +63,7 @@ __all__: list[str] = [
     "int8",
     "interfaces",
     "ite",
+    "jl",
     "prb",
     "ran",
     "rang",
@@ -286,6 +289,7 @@ def help(socket: core.Socket, verbose: bool = False) -> None: ...
 
 float32: dtype  # value = spu.float32
 float64: dtype  # value = spu.float64
+has_julia: bool
 int16: dtype  # value = spu.int16
 int32: dtype  # value = spu.int32
 int64: dtype  # value = spu.int64

@@ -34,6 +34,14 @@ fi
 python -m pybind11_stubgen streampu._ext --output-dir "${WORK}/out" --ignore-all-errors \
     > "${WORK}/stubgen.log" 2>&1 || { cat "${WORK}/stubgen.log"; exit 1; }
 
+# The stubs of the Julia modules (jl.pyi) can only be generated from a build with Julia
+# (-C cmake.define.SPU_LINK_JULIA=ON): keep the committed ones when this build has no Julia
+KEEP_JL=""
+if [[ -f "${DEST}/jl.pyi" && ! -f "${WORK}/out/streampu/_ext/jl.pyi" ]]; then
+    KEEP_JL="${WORK}/jl.pyi"
+    cp "${DEST}/jl.pyi" "${KEEP_JL}"
+fi
+
 rm -rf "${DEST}" "${DEST}.pyi"
 if [[ -d "${WORK}/out/streampu/_ext" ]]; then
     cp -R "${WORK}/out/streampu/_ext" "${DEST}"
@@ -41,7 +49,10 @@ else
     cp "${WORK}/out/streampu/_ext.pyi" "${DEST}.pyi"
 fi
 
-# Missing imports and docstring indentation of the Python methods added by streampu
+if [[ -n "${KEEP_JL}" ]]; then cp "${KEEP_JL}" "${DEST}/jl.pyi"; fi
+
+# Missing imports and docstring indentation of the Python methods added by streampu; same
+# _ext/__init__.pyi with or without Julia (see fix_stubs.py)
 python "${ROOT}/scripts/fix_stubs.py" "${ROOT}/streampu"
 
 # Same formatting as the rest of the package, with the settings of pyproject.toml

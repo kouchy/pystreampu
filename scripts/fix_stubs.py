@@ -9,6 +9,10 @@ after `import streampu`, which adds Python methods to the C++ classes:
   but the first one is indented too much: the extra indentation is removed so that the
   sections (Args, Returns...) are recognized by mkdocstrings.
 
+It also makes `_ext/__init__.pyi` the same with or without Julia: the submodule `jl` is
+listed when `jl.pyi` exists (kept by generate_stubs.sh from a build with Julia), and
+`has_julia` is written without its value.
+
 Usage: python scripts/fix_stubs.py STUBS_FOLDER
 """
 
@@ -16,6 +20,7 @@ from __future__ import annotations
 
 import ast
 import builtins
+import re
 import sys
 from pathlib import Path
 
@@ -94,10 +99,30 @@ def fix_docstrings(source: str) -> str:
     return "\n".join(lines)
 
 
+def fix_julia(source: str, has_jl_stubs: bool) -> str:
+    """`_ext/__init__.pyi`: same content whether the stubs come from a build with Julia or not."""
+    source = re.sub(r"^has_julia: bool = (True|False)$", "has_julia: bool", source, flags=re.M)
+    if has_jl_stubs:
+        # The text is not formatted yet (isort and black run afterwards): search the names
+        # in the whole statements
+        imports = re.search(r"^from \. import \(?([^)]*?)\)?$", source, flags=re.M | re.S)
+        if imports and not re.search(r"\bjl\b", imports.group(1)):
+            source = source.replace(imports.group(0), imports.group(0).replace("import (", "import (jl, ", 1), 1)
+        names = re.search(r"^__all__: list\[str\] = \[([^\]]*)\]", source, flags=re.M)
+        if names and not re.search(r"[\"']jl[\"']", names.group(1)):
+            # Same order as pybind11-stubgen: sorted
+            listed = re.findall(r"[\"']([^\"']+)[\"']", names.group(1))
+            new_list = ", ".join(f'"{name}"' for name in sorted(listed + ["jl"]))
+            source = source.replace(names.group(0), f"__all__: list[str] = [{new_list}]", 1)
+    return source
+
+
 def main(folder: str) -> None:
     for path in sorted(Path(folder).rglob("*.pyi")):
         source = path.read_text()
         fixed = fix_docstrings(fix_imports(source))
+        if path.name == "__init__.pyi" and path.parent.name == "_ext":
+            fixed = fix_julia(fixed, (path.parent / "jl.pyi").exists())
         if fixed != source:
             path.write_text(fixed)
             print(f"fixed {path}")
