@@ -88,6 +88,18 @@ they are not in the packages of PyPI.
 The build prints `Found Julia: ...` and `Julia library folder added to the RPATH of _ext`;
 `_ext` is linked to `libjulia` of this installation of Julia.
 
+!!! warning "Rebuild pyStreamPU after an update of Julia"
+    The compiled extension of pyStreamPU records the absolute path of the folder of
+    `libjulia` (its RPATH) and is built against the headers of this version of Julia. If
+    this installation of Julia is updated, moved or removed (for instance when juliaup
+    replaces 1.11.7 by 1.11.8 and deletes the old one), `import streampu` fails with
+    `Library not loaded: @rpath/libjulia...` (macOS) or
+    `libjulia.so...: cannot open shared object file` (Linux), or the Julia modules may
+    misbehave. Rebuild pyStreamPU (steps 2 and 3) after each update of Julia, with
+    `--force-reinstall --no-cache-dir` and the `build/` folder removed when building from
+    a clone. To keep a version of Julia for pyStreamPU, pin it with juliaup
+    (`juliaup add 1.11.7 && juliaup default 1.11.7`).
+
 ## Run tests
 ```
 pytest tests  # from the root of the repository

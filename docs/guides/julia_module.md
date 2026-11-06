@@ -9,6 +9,8 @@ The data of the sockets are shared with Julia without copy.
     The Julia modules are not in the packages of PyPI: pyStreamPU must be compiled with
     Julia (>= 1.10.9) installed, see [Julia modules](../install.md#julia-modules) in the
     installation page. `spu.julia.available()` tells whether the installed package has them.
+    pyStreamPU is linked to this installation of Julia: rebuild it after each update of
+    Julia (see the installation page).
 
 The complete example of this page is in
 [`examples/custom_julia_module`](https://github.com/rtajan/pystreampu/tree/develop/examples/custom_julia_module).

@@ -97,4 +97,5 @@ The `calls` of the 4 threads add up to 1000 + 4.
 | `Unable to find the julia shared library` or `julia.h` | `JULIA_BINDIR` is the folder of the juliaup launcher | set `JULIA_BINDIR` with `Sys.BINDIR` (step 1), `rm -rf build/` |
 | `found unsuitable version` | Julia older than 1.10.9 | `juliaup add 1.11 && juliaup default 1.11` |
 | `Julia: False` | the package was built without Julia (or Python imports the sources) | `rm -rf build/`, reinstall with `-C cmake.define.SPU_LINK_JULIA=ON`, test from another folder |
-| `Library not loaded: @rpath/libjulia...` at import | the RPATH of `_ext` misses the folder of libjulia | send the output of `otool -l $(python -c "import streampu._ext as e; print(e.__file__)") \| grep -A2 RPATH` |
+| `Library not loaded: @rpath/libjulia...` or `libjulia.so...: cannot open shared object file` at import, after an update of Julia | pyStreamPU is linked to the previous installation of Julia, updated or removed | rebuild pyStreamPU (step 2, after `rm -rf build/`) with `--force-reinstall --no-cache-dir` |
+| `Library not loaded: @rpath/libjulia...` at import, right after the build | the RPATH of `_ext` misses the folder of libjulia | send the output of `otool -l $(python -c "import streampu._ext as e; print(e.__file__)") \| grep -A2 RPATH` |
