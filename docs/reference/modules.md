@@ -6,6 +6,21 @@
 
 ::: streampu._ext.sfl.Stateful_core
 
+## Writing modules in Julia
+
+Only when pyStreamPU is compiled with Julia, see the guide
+[Writing a module in Julia](../guides/julia_module.md).
+
+::: streampu._ext.jl.Stateless_Julia
+
+::: streampu._ext.jl.Stateful_Julia
+
+::: streampu._ext.jl.Module_Julia
+
+::: streampu._ext.jl.Julia
+
+::: streampu.julia
+
 ## Built-in modules
 
 Factories of the built-in modules. Each function returns a new module whose class

@@ -75,7 +75,7 @@ docs = [
   "mkdocs",
   "mkdocs-material",
   "mkdocstrings[python]",
-  "pymdown-extensions",
+  "pymdown-extensions<12",  # 12.x breaks mkdocstrings 1.0 (Highlight needs `md`)
 ]
 
 [tool.pytest.ini_options]

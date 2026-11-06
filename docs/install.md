@@ -56,6 +56,38 @@ pip install -Ccmake.define.YOUR_CMAKE_FLAG1=CONTENT1 -Ccmake.define.YOUR_CMAKE_F
 where you can replace `YOUR_CMAKE_FLAG1` and `YOUR_CMAKE_FLAG2` by the flags you want
 and set `CONTENT1` and `CONTENT2` values.
 
+## Julia modules
+
+The modules written in Julia (`spu.Stateless_Julia`, `spu.Stateful_Julia`, see
+[Writing a module in Julia](guides/julia_module.md)) need pyStreamPU compiled with Julia:
+they are not in the packages of PyPI.
+
+1. Install Julia (>= 1.10.9), for instance with [juliaup](https://github.com/JuliaLang/juliaup):
+   ```
+   curl -fsSL https://install.julialang.org | sh   # or: brew install juliaup
+   juliaup add 1.11 && juliaup default 1.11
+   ```
+2. Give the folder of the `julia` executable to the build (with juliaup, `julia` in the
+   `PATH` is a launcher):
+   ```
+   export JULIA_BINDIR=$(julia --startup-file=no -e 'print(Sys.BINDIR)')
+   ```
+3. Build pyStreamPU from its sources with the option `SPU_LINK_JULIA`, from PyPI:
+   ```
+   pip install streampu --no-binary streampu -C cmake.define.SPU_LINK_JULIA=ON
+   ```
+   or from a clone of the repository:
+   ```
+   pip install ./pystreampu -C cmake.define.SPU_LINK_JULIA=ON
+   ```
+4. Check (from another folder than the repository):
+   ```
+   python -c "import streampu as spu; print(spu.julia.available())"
+   ```
+
+The build prints `Found Julia: ...` and `Julia library folder added to the RPATH of _ext`;
+`_ext` is linked to `libjulia` of this installation of Julia.
+
 ## Run tests
 ```
 pytest tests  # from the root of the repository

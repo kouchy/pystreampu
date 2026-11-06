@@ -445,7 +445,7 @@ update-streampu:
     - docker
   before_script:
     - python -m pip install --upgrade pip
-    - python -m pip install mkdocs mkdocs-material "mkdocstrings[python]" pymdown-extensions
+    - python -m pip install mkdocs mkdocs-material "mkdocstrings[python]" "pymdown-extensions<12"  # see pyproject.toml
 
 # Check that the documentation builds on merge requests
 docs:
