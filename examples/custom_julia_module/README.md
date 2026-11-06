@@ -10,10 +10,10 @@ input -> increment (Julia, stateless) -> * 2 (C++) -> accumulate (Julia, statefu
 - `julia_module.py`: the Python script;
 - `codelets.jl`: the Julia types of the states and the codelet of `accumulate`.
 
-!!! note "Work in progress"
-    The Julia classes are in `streampu._ext.jl` for now (`Julia`, `Stateless_Julia`,
-    `Stateful_Julia`); they will be available as `spu.Stateless_Julia`... The Julia code of a
-    module is evaluated automatically, at its first immediate execution or by a `Sequence`.
+The Julia modules are `spu.Stateless_Julia` and `spu.Stateful_Julia`; `spu.julia` gives
+access to the Julia runtime (`spu.julia.available()`, `spu.julia.eval(...)`). The Julia code
+of a module is evaluated automatically, at its first immediate execution or by a
+`Sequence`.
 
 ## 1. Install Julia (>= 1.10.9)
 
@@ -59,7 +59,7 @@ Then check that the installed package has Julia (from another folder than the
 repository, so that Python imports the installed package and not the sources):
 
 ```bash
-cd /tmp && python -c "import streampu._ext as e; print('has_julia:', e.has_julia)" && cd -
+cd /tmp && python -c "import streampu as spu; print('Julia:', spu.julia.available())" && cd -
 ```
 
 ## 3. Run the example
@@ -96,5 +96,5 @@ The `calls` of the 4 threads add up to 1000 + 4.
 | `Unable to detect the Julia executable` | `julia` not in the `PATH` and `JULIA_BINDIR` not set | set `JULIA_BINDIR` (step 1) |
 | `Unable to find the julia shared library` or `julia.h` | `JULIA_BINDIR` is the folder of the juliaup launcher | set `JULIA_BINDIR` with `Sys.BINDIR` (step 1), `rm -rf build/` |
 | `found unsuitable version` | Julia older than 1.10.9 | `juliaup add 1.11 && juliaup default 1.11` |
-| `has_julia: False` | the package was built without Julia (or Python imports the sources) | `rm -rf build/`, reinstall with `-C cmake.define.SPU_LINK_JULIA=ON`, test from another folder |
+| `Julia: False` | the package was built without Julia (or Python imports the sources) | `rm -rf build/`, reinstall with `-C cmake.define.SPU_LINK_JULIA=ON`, test from another folder |
 | `Library not loaded: @rpath/libjulia...` at import | the RPATH of `_ext` misses the folder of libjulia | send the output of `otool -l $(python -c "import streampu._ext as e; print(e.__file__)") \| grep -A2 RPATH` |

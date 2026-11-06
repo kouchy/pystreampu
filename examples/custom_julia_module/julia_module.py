@@ -14,24 +14,21 @@ import sys
 import numpy as np
 
 import streampu as spu
-from streampu import _ext
 
-if not _ext.has_julia:
+if not spu.julia.available():
     sys.exit(
         "This pyStreamPU is not compiled with Julia: reinstall it with\n"
         "    pip install . -C cmake.define.SPU_LINK_JULIA=ON\n"
         "(see examples/custom_julia_module/README.md)"
     )
 
-from streampu._ext.jl import Julia, Stateful_Julia, Stateless_Julia  # noqa: E402
-
 N = 8  # number of samples per frame
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-Julia.init()  # optional: the first Julia module starts Julia anyway
+spu.julia.init()  # optional: the first Julia module starts Julia anyway
 
 # --- Stateless module: add a constant to each sample --------------------------
-inc = Stateless_Julia()
+inc = spu.Stateless_Julia()
 t_inc = inc.create_task("increment")
 inc.create_socket_in(t_inc, "in", N, spu.int32)
 inc.create_socket_out(t_inc, "out", N, spu.int32)
@@ -49,7 +46,7 @@ end
 )
 
 # --- Stateful module: states and codelet in codelets.jl ---------------------
-acc = Stateful_Julia()
+acc = spu.Stateful_Julia()
 acc.create_state_file("Accumulator(0, 0)", os.path.join(HERE, "codelets.jl"))  # one copy per thread
 acc.create_state("Gain(Int32(10))", shared=True)  # type already defined by codelets.jl
 t_acc = acc.create_task("accumulate")
