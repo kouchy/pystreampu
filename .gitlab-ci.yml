@@ -1,8 +1,11 @@
 # A single pipeline per push: the merge request pipeline when a merge request is open for
 # the branch, the branch pipeline otherwise (and the tag pipelines)
+# (and the pipelines run by hand: Build > Pipelines > Run pipeline, even for a branch with
+# an open merge request)
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
       when: never
     - if: $CI_COMMIT_BRANCH
@@ -20,6 +23,9 @@ variables:
   # Wheels and publication (jobs build-wheels-* and publish) are disabled for now: set
   # BUILD_WHEELS to "true" (project variable, or when running a pipeline) to enable them
   BUILD_WHEELS: "false"
+  # Set JULIA_ONLY to "true" when running a pipeline by hand (Build > Pipelines > Run
+  # pipeline) to run only the job `julia`
+  JULIA_ONLY: "false"
   # ccache: the object files are reused from one pipeline to the next (GitLab cache)
   CCACHE_DIR: "$CI_PROJECT_DIR/.ccache"
   CCACHE_BASEDIR: "$CI_PROJECT_DIR"
@@ -43,6 +49,8 @@ variables:
   # pipelines only run `update-streampu`.
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $JULIA_ONLY == "true"
       when: never
     - when: on_success
   before_script:

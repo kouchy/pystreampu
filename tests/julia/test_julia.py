@@ -257,15 +257,22 @@ def test_pipeline_python_julia_gc(tmp_path, n_threads):
     np.testing.assert_array_equal(np.fromfile(out_path, dtype=np.uint8), data)
 
 
-def run_python(code):
-    """Run Python code in a new process (Julia is stopped at its exit): (return code, stdout)."""
-    proc = subprocess.run([sys.executable, "-c", textwrap.dedent(code)], capture_output=True, text=True, timeout=120)
+def run_python(code, cwd):
+    """Run Python code in a new process (Julia is stopped at its exit): (return code, output).
+
+    It runs in `cwd`: from the root of the repository, `import streampu` would load the
+    `streampu/` folder of the sources instead of the installed package.
+    """
+    proc = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(code)], cwd=cwd, capture_output=True, text=True, timeout=120
+    )
     return proc.returncode, proc.stdout + proc.stderr
 
 
-def test_exit_hooks():
+def test_exit_hooks(tmp_path):
     """At the exit of Python, the atexit functions and the finalizers of Julia run."""
-    code, out = run_python("""
+    code, out = run_python(
+        """
         import sys
         import streampu as spu
         spu.julia.eval('''
@@ -275,14 +282,17 @@ def test_exit_hooks():
         ''')
         print("end of script", flush=True)
         sys.exit(3)
-        """)
+        """,
+        tmp_path,
+    )
     assert code == 3, out
     assert "end of script" in out and "julia atexit" in out and "julia finalizer" in out, out
 
 
-def test_exit_sequence_alive():
+def test_exit_sequence_alive(tmp_path):
     """A sequence of Julia modules still alive at the exit of Python: no deadlock."""
-    code, out = run_python("""
+    code, out = run_python(
+        """
         import numpy as np
         import streampu as spu
         spu.julia.eval('atexit(() -> println("julia atexit"))')
@@ -296,6 +306,8 @@ def test_exit_sequence_alive():
         seq = spu.Sequence(y, 4)
         seq.exec_n_times(100)
         print("end of script", flush=True)
-        """)
+        """,
+        tmp_path,
+    )
     assert code == 0, out
     assert "end of script" in out and "julia atexit" in out, out
