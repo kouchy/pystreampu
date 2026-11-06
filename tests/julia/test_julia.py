@@ -5,6 +5,10 @@ They are skipped when pyStreamPU is not compiled with Julia
 `Main` module of Julia, shared by the whole process: each test uses its own names.
 """
 
+import subprocess
+import sys
+import textwrap
+
 import numpy as np
 import pytest
 
@@ -251,3 +255,47 @@ def test_pipeline_python_julia_gc(tmp_path, n_threads):
     finally:
         spu.Task.call_auto_exec = auto_exec
     np.testing.assert_array_equal(np.fromfile(out_path, dtype=np.uint8), data)
+
+
+def run_python(code):
+    """Run Python code in a new process (Julia is stopped at its exit): (return code, stdout)."""
+    proc = subprocess.run([sys.executable, "-c", textwrap.dedent(code)], capture_output=True, text=True, timeout=120)
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+def test_exit_hooks():
+    """At the exit of Python, the atexit functions and the finalizers of Julia run."""
+    code, out = run_python("""
+        import sys
+        import streampu as spu
+        spu.julia.eval('''
+            atexit(() -> println("julia atexit"))
+            mutable struct Resource; x::Int; end
+            r = Resource(1); finalizer(_ -> println("julia finalizer"), r); r = nothing
+        ''')
+        print("end of script", flush=True)
+        sys.exit(3)
+        """)
+    assert code == 3, out
+    assert "end of script" in out and "julia atexit" in out and "julia finalizer" in out, out
+
+
+def test_exit_sequence_alive():
+    """A sequence of Julia modules still alive at the exit of Python: no deadlock."""
+    code, out = run_python("""
+        import numpy as np
+        import streampu as spu
+        spu.julia.eval('atexit(() -> println("julia atexit"))')
+        mdl = spu.Stateless_Julia()
+        tsk = mdl.create_task("t_exit_inc")
+        mdl.create_socket_in(tsk, "in", 8, spu.int32)
+        mdl.create_socket_out(tsk, "out", 8, spu.int32)
+        mdl.create_codelet(tsk, "t_exit_inc(i, o, f, n) = (o .= i .+ Int32(1); 0)")
+        x = spu.array(np.arange(8, dtype=np.int32))
+        y = mdl.t_exit_inc(x)
+        seq = spu.Sequence(y, 4)
+        seq.exec_n_times(100)
+        print("end of script", flush=True)
+        """)
+    assert code == 0, out
+    assert "end of script" in out and "julia atexit" in out, out

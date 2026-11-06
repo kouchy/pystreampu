@@ -56,8 +56,14 @@ class Julia:
         """
         Start the Julia runtime, if it is not started yet (it is never started twice).
 
+        Julia is stopped at the exit of Python (the `atexit` functions of the Julia code and
+        the finalizers are run), it cannot be started again after.
+
         Args:
             n_proxies (int): number of GC root slots per thread
+
+        Raises:
+            spu.exceptions.RuntimeError: if Julia has already been stopped
         """
 
     @staticmethod

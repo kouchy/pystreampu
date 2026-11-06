@@ -25,6 +25,38 @@ pyspu::wrapper::check_julia_exception(const std::string& context)
     throw spu::tools::runtime_error(std::move(message)); // spu.exceptions.RuntimeError, like the errors of StreamPU
 }
 
+namespace
+{
+// Hook registered with Py_AtExit: it runs at the end of the finalization of Python, once the
+// objects of the scripts are destroyed (the Julia threads of their sequences and pipelines are
+// stopped), and before exit() destroys the thread_local GC roots of StreamPU (Ref_keeper).
+// Calling jl_atexit_hook earlier (`atexit` module of Python) blocks the destruction of a
+// sequence still alive. Python must not be used here.
+void
+julia_atexit()
+{
+    if (pyspu::wrapper::julia_exited() || !jl_is_initialized()) return;
+    if (jl_get_pgcstack() == nullptr) jl_adopt_thread(); // Julia started from another thread
+    Julia::exit(0);
+    pyspu::wrapper::julia_exited() = true;
+}
+} // namespace
+
+void
+pyspu::wrapper::julia_init(const uint64_t n_proxies)
+{
+    static bool atexit_registered = false;
+    if (pyspu::wrapper::julia_exited())
+        throw spu::tools::runtime_error("Julia has been stopped at the exit of Python, it cannot be started again");
+    Julia::init(n_proxies);
+    if (!atexit_registered)
+    {
+        if (Py_AtExit(&julia_atexit) != 0)
+            PyErr_WarnEx(PyExc_RuntimeWarning, "the exit hooks of Julia will not run at the exit of Python", 1);
+        atexit_registered = true;
+    }
+}
+
 std::string
 pyspu::wrapper::julia_repr(jl_value_t* value)
 {
@@ -48,13 +80,19 @@ pyspu::wrapper::wrap_julia(py::handle scope)
     )pbdoc");
 
     julia_class.def_static("init",
-                           &Julia::init,
+                           &pyspu::wrapper::julia_init,
                            "n_proxies"_a = 256,
                            R"pbdoc(
         Start the Julia runtime, if it is not started yet (it is never started twice).
 
+        Julia is stopped at the exit of Python (the `atexit` functions of the Julia code and
+        the finalizers are run), it cannot be started again after.
+
         Args:
             n_proxies (int): number of GC root slots per thread
+
+        Raises:
+            spu.exceptions.RuntimeError: if Julia has already been stopped
     )pbdoc");
 
     julia_class.def_static("is_init", &Julia::is_init, "True if the Julia runtime has been started.");
@@ -65,7 +103,7 @@ pyspu::wrapper::wrap_julia(py::handle scope)
       "eval",
       [](const std::string& code)
       {
-          Julia::init();
+          pyspu::wrapper::julia_init();
           pyspu::wrapper::Julia_gc_unsafe_region gc_unsafe;
           Julia::eval_string(code);
           pyspu::wrapper::check_julia_exception("Julia error");
@@ -86,7 +124,7 @@ pyspu::wrapper::wrap_julia(py::handle scope)
       [](const py::object& path)
       {
           const std::string filename = py::str(py::module_::import("os").attr("fspath")(path));
-          Julia::init();
+          pyspu::wrapper::julia_init();
           pyspu::wrapper::Julia_gc_unsafe_region gc_unsafe;
           Julia::eval_file(filename);
           pyspu::wrapper::check_julia_exception("Julia error in '" + filename + "'");

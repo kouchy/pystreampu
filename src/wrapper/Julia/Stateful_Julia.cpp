@@ -27,7 +27,7 @@ pyspu::wrapper::wrap_stateful_julia(py::handle scope)
     cls.def(py::init(
               [](const bool jl_safe)
               {
-                  spu::tools::Julia::init();
+                  pyspu::wrapper::julia_init();
                   return new Stateful_Julia(jl_safe);
               }),
             "jl_safe"_a = true,

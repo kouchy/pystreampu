@@ -162,5 +162,7 @@ which is faster once they are debugged.
 
 - Julia is started in the thread that creates the first Julia module: create it from the
   main thread of Python.
-- Julia is not stopped when Python exits (its exit hooks do not run).
+- Julia is stopped at the end of the exit of Python, once the Python objects are destroyed:
+  the `atexit` functions of the Julia code and the finalizers run then. It cannot be
+  started again in the same process, and `os._exit` skips this step.
 - Python 3.14t (without GIL) with Julia has not been tested yet.

@@ -24,6 +24,15 @@ namespace pyspu
 namespace wrapper
 {
 #ifdef SPU_JULIA
+// True once Julia has been stopped (exit hooks run at the exit of Python, see julia_init): the
+// objects destroyed after must not call the C API of Julia any more.
+inline bool&
+julia_exited()
+{
+    static bool exited = false;
+    return exited;
+}
+
 class Julia_gc_safe_region
 {
     int8_t state = 0;
@@ -32,7 +41,7 @@ class Julia_gc_safe_region
   public:
     Julia_gc_safe_region()
     {
-        if (jl_is_initialized() && jl_get_pgcstack() != nullptr)
+        if (!julia_exited() && jl_is_initialized() && jl_get_pgcstack() != nullptr)
         {
             this->state = jl_gc_safe_enter(jl_current_task->ptls);
             this->active = true;
@@ -54,7 +63,7 @@ class Julia_gc_unsafe_region
   public:
     Julia_gc_unsafe_region()
     {
-        if (!jl_is_initialized()) return;
+        if (julia_exited() || !jl_is_initialized()) return;
         if (jl_get_pgcstack() == nullptr) jl_adopt_thread(); // thread unknown to Julia
         this->state = jl_gc_unsafe_enter(jl_current_task->ptls);
         this->active = true;

@@ -26,6 +26,13 @@ wrap_stateless_julia(py::handle scope);
 void
 wrap_stateful_julia(py::handle scope);
 
+// Start Julia if it is not started yet (spu::tools::Julia::init), and the first time, register
+// with Py_AtExit the hook that stops Julia at the end of the finalization of Python
+// (jl_atexit_hook: the `atexit` functions of the Julia code, the finalizers, the flush of the
+// streams).
+void
+julia_init(uint64_t n_proxies = 256);
+
 // Throw a spu::tools::runtime_error (Python: spu.exceptions.RuntimeError) if the last call to the Julia C API raised a Julia exception
 // (the C API does not throw: it returns NULL and keeps the exception).
 void
