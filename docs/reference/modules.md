@@ -4,6 +4,8 @@
 
 ::: streampu._ext.sts.Stateless
 
+::: streampu._ext.sfl.Stateful
+
 ::: streampu._ext.sfl.Stateful_core
 
 ## Writing modules in Julia
