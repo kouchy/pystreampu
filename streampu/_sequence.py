@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-from typing import List
+from typing import List, Union, overload
 
 from streampu._ext import exceptions
 from streampu._ext.core import Socket, Task, _Sequence
@@ -50,6 +50,50 @@ def _get_firsts(s: Socket):
         return out
 
     return visit(s, [])
+
+
+def _bound_sockets(tsk: Task) -> List[Socket]:
+    """Output sockets bound to the input and forward sockets of a task."""
+    bound = []
+    for sckt in list(tsk.inputs) + list(tsk.forwards):
+        try:
+            bound.append(sckt.get_bound_socket())
+        except Exception:  # not bound (e.g. the forward socket of an array)
+            pass
+    return bound
+
+
+def _firsts_upstream(tasks: List[Task], stop: List[Task]) -> List[Task]:
+    """Constants that feed `tasks`, found by following the bindings backwards.
+
+    A constant is a task with a forward socket and without input, such as `Array.read`
+    (`x * 2` creates one for `2`).
+
+    The exploration does not go through the tasks of `stop` (they are not returned), nor
+    through the tasks bound with `Task.bind` (executed after another task).
+
+    Args:
+        tasks (list[Task]): tasks to start from
+        stop (list[Task]): tasks where the exploration stops
+
+    Returns:
+        out (list[Task]): the constants found
+    """
+    visited = list(stop)
+    found = []
+    pending = list(tasks)
+    while pending:
+        tsk = pending.pop()
+        if any(tsk is t for t in visited):
+            continue
+        visited.append(tsk)
+        bound = _bound_sockets(tsk)
+        if len(tsk.inputs) == 0 and len(bound) == 0:
+            if not tsk.is_bound() and len(tsk.forwards) > 0:
+                found.append(tsk)
+        else:
+            pending += [s.task for s in bound]
+    return found
 
 
 def get_cloned_modules(self, module_ref):
@@ -112,7 +156,7 @@ _Sequence.get_modules = get_modules
 
 
 class Sequence(_Sequence):
-    """Overlay of streampu._ext.core._Sequence."""
+    """Graph of tasks executed in a fixed order, by one or several threads."""
 
     @staticmethod
     def _is_socket_input(value):
@@ -121,6 +165,22 @@ class Sequence(_Sequence):
         if isinstance(value, list):
             return len(value) > 0 and all(isinstance(v, Socket) or hasattr(v, "_mrv") for v in value)
         return hasattr(value, "_mrv")
+
+    @staticmethod
+    def _is_task_input(value):
+        if isinstance(value, Task):
+            return True
+        return isinstance(value, list) and len(value) > 0 and all(isinstance(v, Task) for v in value)
+
+    @classmethod
+    def _constants_missing(cls, args):
+        """True for Sequence(first(s), last(s), ...) when constants feed the last tasks."""
+        if len(args) < 2 or not cls._is_task_input(args[0]) or not cls._is_task_input(args[1]):
+            return False
+        firsts = args[0] if isinstance(args[0], list) else [args[0]]
+        lasts = args[1] if isinstance(args[1], list) else [args[1]]
+        exclusions = args[2] if len(args) > 2 and isinstance(args[2], list) else []
+        return len(_firsts_upstream(lasts, firsts + exclusions)) > 0
 
     @staticmethod
     def _firsts_from_sockets(sockets):
@@ -136,29 +196,94 @@ class Sequence(_Sequence):
                     firsts.append(first)
         return firsts
 
+    @overload
+    def __init__(
+        self,
+        sockets: Union[Socket, List[Socket]],
+        n_threads: int = 1,
+        thread_pinning: bool = False,
+        sequence_pinning_policy: str = "",
+        tasks_inplace: bool = True,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        first: Union[Task, List[Task]],
+        n_threads: int = 1,
+        thread_pinning: bool = False,
+        sequence_pinning_policy: str = "",
+        tasks_inplace: bool = True,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        first: Union[Task, List[Task]],
+        last: Union[Task, List[Task]],
+        n_threads: int = 1,
+        thread_pinning: bool = False,
+        sequence_pinning_policy: str = "",
+        tasks_inplace: bool = True,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        firsts: List[Task],
+        lasts: List[Task],
+        exclusions: List[Task],
+        n_threads: int = 1,
+        thread_pinning: bool = False,
+        sequence_pinning_policy: str = "",
+        tasks_inplace: bool = True,
+    ) -> None: ...
+
     def __init__(self, *args, **kwargs):
-        """Build a Sequence.
+        """Build a sequence: the graph of bound tasks, executed in a fixed order.
 
-        A sequence can be built from:
+        The tasks of the sequence are found by following the bindings from the first tasks.
+        The graph can be given in four ways:
 
-        - a socket or a list of sockets: `Sequence(out)`, `Sequence([s1, s2])`. The first
-          tasks are found by following the bindings backwards from these sockets;
-        - its first task: `Sequence(task)`, or a list of first tasks;
-        - its first and last tasks: `Sequence(first, last)`.
+        - `Sequence(out)` or `Sequence([out1, out2])`: the tasks that compute these
+          sockets (the first tasks are found by following the bindings backwards);
+        - `Sequence(first)` or `Sequence([first1, first2])`: the tasks reached from
+          these first tasks;
+        - `Sequence(first, last)`: the tasks between the first and the last task(s)
+          (lists are accepted);
+        - `Sequence(firsts, lasts, exclusions)`: idem, without the tasks of `exclusions`
+          (the exploration stops there).
 
-        The following positional or keyword arguments are those of the C++ constructor:
-        `n_threads` (default 1), `thread_pinning` (default False),
-        `sequence_pinning_policy` and `tasks_inplace`.
+        The sockets can also be given by keyword: `Sequence(sockets=out)`. The constants
+        of the graph (the tasks without input, e.g. the `Array.read` created by `x * 2`) are
+        added to the first tasks.
 
-        Args:
-            *args (Any): socket(s) or task(s) to build the sequence from, followed by the
-                optional arguments of the C++ constructor
-            **kwargs (Any): keyword arguments of the C++ constructor; `sockets` can be used
-                to give the socket(s) to build the sequence from
+        Each thread executes its own copy of the graph on its own frames: the modules are
+        cloned for the threads (see `get_cloned_modules`).
+
+        The parameters of the four forms (the signature of `__init__` is `*args, **kwargs`,
+        so they are listed here rather than in an "Args" section):
+
+        - `sockets` (`Socket | list[Socket]`): output socket(s) of the graph;
+        - `first` (`Task | list[Task]`): first task(s) of the graph;
+        - `last` (`Task | list[Task]`): last task(s) of the graph;
+        - `firsts`, `lasts` (`list[Task]`): first and last tasks of the graph;
+        - `exclusions` (`list[Task]`): tasks left out of the sequence;
+        - `n_threads` (`int`, default 1): number of threads;
+        - `thread_pinning` (`bool`, default False): pin each thread to processing units
+          (needs StreamPU built with hwloc, no effect on macOS);
+        - `sequence_pinning_policy` (`str`, default no policy): processing units of the
+          threads, separated by `;` (one entry per thread), with `,` between the units
+          allowed for a thread, e.g. `"PU_0; PU_1, PU_2"` (see "Thread pinning" in the
+          StreamPU documentation);
+        - `tasks_inplace` (`bool`, default True): the thread 0 uses the modules created by
+          the user (True), or a copy like the other threads (False: the modules of the
+          user are not modified by the executions).
 
         Examples:
-            >>> seq = streampu.Sequence(out)        # one thread
-            >>> seq = streampu.Sequence(out, 4)     # four threads
+            >>> seq = streampu.Sequence(out)             # one thread
+            >>> seq = streampu.Sequence(out, 4)          # four threads
+            >>> seq = streampu.Sequence(src.generate, snk.send, n_threads=2)
             >>> seq.exec_n_times(100)
         """
         if "sockets" in kwargs:
@@ -168,9 +293,21 @@ class Sequence(_Sequence):
         elif len(args) > 0 and self._is_socket_input(args[0]):
             firsts = self._firsts_from_sockets(args[0])
             super().__init__(firsts, [], [], *args[1:], **kwargs)
+        elif self._constants_missing(args):
+            # Sequence(first(s), last(s)): the constants (e.g. the `Array.read` of `x * 2`)
+            # are first tasks too
+            firsts = args[0] if isinstance(args[0], list) else [args[0]]
+            lasts = args[1] if isinstance(args[1], list) else [args[1]]
+            rest = args[2:]
+            exclusions = []
+            if len(rest) > 0 and isinstance(rest[0], list):
+                exclusions, rest = rest[0], rest[1:]
+            firsts = _firsts_upstream(lasts, firsts + exclusions) + firsts
+            super().__init__(firsts, lasts, exclusions, *rest, **kwargs)
         else:
             super().__init__(*args, **kwargs)
         self.original_modules = super().get_modules_per_threads()[0]
+        """Modules of the thread 0, as given to the constructor."""
 
 
 __all__ = ["Sequence"]
