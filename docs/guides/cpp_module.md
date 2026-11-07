@@ -92,6 +92,13 @@ make
     --8<-- "examples/custom_cpp_module/CMakeLists.txt"
     ```
 
+!!! note "pyStreamPU built with Julia"
+    The CMake package of a StreamPU built with Julia links the target `Julia::Julia`: call
+    `find_package(Julia)` before `find_package(streampu)`, as the example does. The package
+    `Julia` is installed with pyStreamPU in the folders of `streampu.get_cmake_dirs()`, for the
+    Julia of its build (or the one of `JULIA_BINDIR`). Add the folder of `JULIA_LIBRARY` to the
+    RPATH of the extension, so that `libjulia` is found at import time.
+
 ## Use the module
 
 The build creates a Python extension `my_module` in the `build` folder. Add this

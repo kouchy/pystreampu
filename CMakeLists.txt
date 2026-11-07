@@ -109,6 +109,28 @@ if(SPU_LINK_JULIA AND JULIA_LIBRARY)
     set_property(TARGET _ext APPEND PROPERTY INSTALL_RPATH "${JULIA_LIBRARY_DIR}")
 endif()
 
+# CMake package "Julia" for the extensions built against this pyStreamPU (see
+# cmake/JuliaConfig.cmake.in): the installed package of StreamPU links Julia::Julia.
+if(SPU_LINK_JULIA AND JULIA_INCLUDE_DIR)
+    include(CMakePackageConfigHelpers)
+    file(STRINGS "${JULIA_INCLUDE_DIR}/julia_version.h" SPU_JULIA_VERSION LIMIT_COUNT 1 REGEX JULIA_VERSION_STRING)
+    string(REGEX REPLACE ".*\"([^\"]+)\".*" "\\1" SPU_JULIA_VERSION "${SPU_JULIA_VERSION}")
+    string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" SPU_JULIA_VERSION "${SPU_JULIA_VERSION}")
+    set(SPU_JULIA_BINDIR "${JULIA_BINDIR}")
+    set(SPU_JULIA_EXECUTABLE "${JULIA_EXECUTABLE}")
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/JuliaConfig.cmake.in"
+                   "${CMAKE_CURRENT_BINARY_DIR}/cmake/Julia/JuliaConfig.cmake" @ONLY)
+    write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/cmake/Julia/JuliaConfigVersion.cmake"
+                                     VERSION "${SPU_JULIA_VERSION}"
+                                     COMPATIBILITY AnyNewerVersion)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/Julia/JuliaConfig.cmake"
+                  "${CMAKE_CURRENT_BINARY_DIR}/cmake/Julia/JuliaConfigVersion.cmake"
+                  "${CMAKE_CURRENT_SOURCE_DIR}/lib/streampu/cmake/Modules/FindJulia.cmake"
+            DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Julia"
+            COMPONENT library)
+    message(STATUS "CMake package Julia ${SPU_JULIA_VERSION} installed for the extensions (${JULIA_BINDIR})")
+endif()
+
 option(PYSTREAMPU_COVERAGE "Instrument the wrapper (_ext) for gcov code coverage" OFF)
 if(PYSTREAMPU_COVERAGE)
     target_compile_options(_ext PRIVATE -O0 -g --coverage)
