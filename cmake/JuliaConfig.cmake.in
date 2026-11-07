@@ -1,0 +1,19 @@
+# CMake package "Julia", installed with pyStreamPU when it is built with Julia
+# (-C cmake.define.SPU_LINK_JULIA=ON), next to the package of StreamPU: found by
+# `find_package(Julia)` with the folders of `streampu.get_cmake_dirs()` in CMAKE_PREFIX_PATH.
+#
+# The CMake package of a StreamPU built with Julia links the target Julia::Julia: an extension
+# must call `find_package(Julia)` before `find_package(streampu)`. This file defines Julia::Julia
+# for the Julia used to build pyStreamPU (an extension must use the same Julia), unless
+# JULIA_BINDIR (CMake or environment variable) gives another one.
+
+if(NOT DEFINED JULIA_BINDIR AND NOT DEFINED ENV{JULIA_BINDIR} AND EXISTS "@SPU_JULIA_BINDIR@")
+    set(JULIA_BINDIR "@SPU_JULIA_BINDIR@")
+    if(NOT DEFINED JULIA_EXECUTABLE AND EXISTS "@SPU_JULIA_EXECUTABLE@")
+        set(JULIA_EXECUTABLE "@SPU_JULIA_EXECUTABLE@")
+    endif()
+endif()
+
+# FindJulia of StreamPU (copied next to this file): Julia::Julia, JULIA_LIBRARY,
+# JULIA_INCLUDE_DIR, JULIA_VERSION, Julia_FOUND
+include("${CMAKE_CURRENT_LIST_DIR}/FindJulia.cmake")

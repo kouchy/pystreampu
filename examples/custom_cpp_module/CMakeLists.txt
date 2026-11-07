@@ -15,6 +15,9 @@ find_package(pybind11 CONFIG REQUIRED )
 
 find_package(Threads REQUIRED)
 find_package(cpptrace REQUIRED)
+# pyStreamPU built with Julia: its StreamPU links Julia::Julia, defined by the package "Julia"
+# installed with pyStreamPU (found through the same CMAKE_PREFIX_PATH). Nothing otherwise.
+find_package(Julia 1.10.9 QUIET)
 find_package(streampu REQUIRED)
 #find_package(pystreampu REQUIRED)
 
@@ -28,5 +31,11 @@ set_target_properties(my_module-lib PROPERTIES
                       POSITION_INDEPENDENT_CODE ON) # set -fpic
 
 target_link_libraries     (my_module-lib PRIVATE spu::spu-static-lib)
+if(Julia_FOUND AND JULIA_LIBRARY)
+    # libjulia found at import time
+    get_filename_component(JULIA_LIBRARY_DIR "${JULIA_LIBRARY}" DIRECTORY)
+    set_property(TARGET my_module-lib APPEND PROPERTY BUILD_RPATH "${JULIA_LIBRARY_DIR}")
+    set_property(TARGET my_module-lib APPEND PROPERTY INSTALL_RPATH "${JULIA_LIBRARY_DIR}")
+endif()
 target_include_directories(my_module-lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 #target_include_directories(my_module-lib PUBLIC /Users/rtajan/Codes/sandbox/pystreampu/include)

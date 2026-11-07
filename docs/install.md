@@ -88,6 +88,12 @@ they are not in the packages of PyPI.
 The build prints `Found Julia: ...` and `Julia library folder added to the RPATH of _ext`;
 `_ext` is linked to `libjulia` of this installation of Julia.
 
+A C++ extension built against a pyStreamPU compiled with Julia (see
+[Writing a module in C++](guides/cpp_module.md)) links `libjulia` too: its CMake project must
+call `find_package(Julia)` before `find_package(streampu)`. pyStreamPU installs the CMake
+package `Julia` for that, next to the one of StreamPU (`streampu.get_cmake_dirs()`); it uses the
+Julia of the build of pyStreamPU, unless `JULIA_BINDIR` gives another one.
+
 !!! warning "Rebuild pyStreamPU after an update of Julia"
     The compiled extension of pyStreamPU records the absolute path of the folder of
     `libjulia` (its RPATH) and is built against the headers of this version of Julia. If
