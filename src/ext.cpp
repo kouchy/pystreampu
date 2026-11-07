@@ -14,6 +14,8 @@ using namespace py::literals;
 PYBIND11_MODULE(_ext, m, py::mod_gil_not_used())
 {
     spu::tools::Buffer_allocator::set_task_autoalloc(true);
+    // The extensions can register downcasters for the Module* returned to Python (Module_downcast.hpp)
+    m.attr("HAS_MODULE_DOWNCAST_REGISTRY") = true;
     m.def("get_hardware_concurrency", &std::thread::hardware_concurrency);
     // Split in two following
     // https:pybind11.readthedocs.io/en/stable/advanced/misc.html#avoiding-c-types-in-docstrings
