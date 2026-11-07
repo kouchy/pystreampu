@@ -40,6 +40,7 @@ from . import (
 
 __all__: list[str] = [
     "FormatFlags",
+    "HAS_MODULE_DOWNCAST_REGISTRY",
     "Signal_handler",
     "ada",
     "arr",
@@ -287,6 +288,7 @@ def help(task: core.Task, verbose: bool = False) -> None: ...
 @typing.overload
 def help(socket: core.Socket, verbose: bool = False) -> None: ...
 
+HAS_MODULE_DOWNCAST_REGISTRY: bool = True
 float32: dtype  # value = spu.float32
 float64: dtype  # value = spu.float64
 has_julia: bool

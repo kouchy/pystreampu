@@ -10,5 +10,7 @@
 #include <pybind11/iostream.h>
 
 #include "wrapper/Common/pystreambuf.h"
+// typing of the spu::module::Module* returned to Python (must be seen by every translation unit, ODR)
+#include "wrapper/Common/Tools/Module_downcast.hpp"
 
 #endif
