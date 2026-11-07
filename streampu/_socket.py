@@ -104,25 +104,54 @@ def _bind_(self: Socket, s_out: SocketLike, priority: int = -1, raw_data: bool =
 Socket.bind = _bind_
 
 
+def _indices(self: Socket, key: Union[int, slice, list]) -> Union[int, np.ndarray]:
+    """Indices of the elements of a frame designated by `key`, as for a 1D NumPy array.
+
+    Args:
+        self (Socket): the indexed socket
+        key (int|slice|list): an index (negative from the end), a slice, or a list of indices
+
+    Returns:
+        out (int|np.ndarray): the index, or the array of the indices, in [0, len(self))
+
+    Raises:
+        IndexError: if an index is out of the frame
+        TypeError: if `key` is not an index, a slice or a list of indices
+    """
+    len_ = self.n_elmts // self.task.module.n_frames
+    if isinstance(key, slice):
+        return np.arange(*key.indices(len_))
+    if isinstance(key, (int, np.integer)) and not isinstance(key, (bool, np.bool_)):
+        idx = int(key)
+        if not -len_ <= idx < len_:
+            raise IndexError(f"index {idx} is out of bounds for a socket of {len_} elements per frame")
+        return idx % len_
+    if isinstance(key, (list, tuple, np.ndarray)):
+        idx = np.asarray(key)
+        if idx.size == 0:
+            return np.zeros(0, dtype=np.int64)
+        if idx.ndim != 1 or not np.issubdtype(idx.dtype, np.integer):
+            raise TypeError("a list of indices must be a 1D list of integers")
+        out = idx[(idx < -len_) | (idx >= len_)]
+        if out.size:
+            raise IndexError(f"index {int(out[0])} is out of bounds for a socket of {len_} elements per frame")
+        return idx % len_
+    raise TypeError(f"socket indices must be integers, slices or lists of integers, not {type(key).__name__}")
+
+
 def _setitem(self: Socket, key: Union[int, slice, list], data: SocketLike) -> Socket:
     """Write data at place key inside a socket.
 
     Args:
         self (Socket): input data
-        key (int|slice|list): place to write the new data
+        key (int|slice|list): place to write the new data (as for a 1D NumPy array)
         data (SocketLike): new data
+
+    Raises:
+        IndexError: if an index is out of the frame
+        TypeError: if `key` is not an index, a slice or a list of indices
     """
-    slc = None
-    if isinstance(key, slice):
-        len_ = self.n_elmts // self.task.module.n_frames
-        start, stop, step = key.indices(len_)
-        slc = Slicer(self, np.arange(start, stop, step))
-
-    if isinstance(key, int):
-        slc = Slicer(self, key)
-
-    if isinstance(key, list):
-        slc = Slicer(self, np.array(key))
+    slc = Slicer(self, _indices(self, key))
 
     slc.n_frames = self.task.module.n_frames
     if hasattr(data, "__len__") and len(data) > 1:
@@ -143,22 +172,16 @@ def _getitem(self: Socket, key: Union[slice, int, list]) -> Socket:
 
     Args:
         self (Socket): input data
-        key (int|slice|list): place to write the new data
+        key (int|slice|list): place to read (as for a 1D NumPy array)
 
     Returns:
         out (Socket): self[key]
+
+    Raises:
+        IndexError: if an index is out of the frame (this also ends `iter(socket)`)
+        TypeError: if `key` is not an index, a slice or a list of indices
     """
-    slc = None
-    if isinstance(key, slice):
-        len_ = self.n_elmts // self.task.module.n_frames
-        start, stop, step = key.indices(len_)
-        slc = Slicer(self, np.arange(start, stop, step))
-
-    if isinstance(key, int):
-        slc = Slicer(self, key)
-
-    if isinstance(key, list):
-        slc = Slicer(self, np.array(key))
+    slc = Slicer(self, _indices(self, key))
 
     slc.n_frames = self.task.module.n_frames
 
@@ -170,6 +193,22 @@ def _getitem(self: Socket, key: Union[slice, int, list]) -> Socket:
 
 
 Socket.__getitem__ = _getitem
+
+
+def _iter(self: Socket):
+    """Iterate over the elements of a frame: `self[0]`, `self[1]`, ..., `self[len(self) - 1]`.
+
+    Args:
+        self (Socket): input data
+
+    Yields:
+        out (Socket): one socket per element
+    """
+    for i in range(len(self)):
+        yield self[i]
+
+
+Socket.__iter__ = _iter
 
 
 def _add(self: Socket, value: SocketLike) -> Socket:

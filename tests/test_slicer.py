@@ -1,5 +1,7 @@
 """Functional tests for the slice operator."""
 
+import itertools
+
 import numpy as np
 import pytest
 
@@ -107,3 +109,40 @@ def test_slice_int_indexing():
 
     x[1] += 4
     assert x.numpy[0][1] == 7
+
+
+def test_iteration_stops_at_the_end_of_the_frame():
+    """iter(socket) gives the elements of a frame and stops (it was infinite, past the end)."""
+    s = array([1, 0, 1])
+    items = list(itertools.islice(iter(s), 8))
+    assert len(items) == 3
+    assert [int(i.numpy[0, 0]) for i in items] == [1, 0, 1]
+    assert [int(i.numpy[0, 0]) for i in s] == [1, 0, 1]
+
+
+@pytest.mark.parametrize("key, expected", [(-1, [[5]]), (-5, [[1]]), (np.int64(2), [[3]]), ([0, -1], [[1, 5]])])
+def test_negative_and_numpy_indices(key, expected):
+    x = array([1, 2, 3, 4, 5])
+    _assert_numpy(x[key], expected)
+
+
+@pytest.mark.parametrize("key", [5, -6, [0, 5], [-6]])
+def test_index_out_of_bounds(key):
+    x = array([1, 2, 3, 4, 5])
+    with pytest.raises(IndexError):
+        x[key]
+    with pytest.raises(IndexError):
+        x[key] = 0
+
+
+@pytest.mark.parametrize("key", [1.5, "a", [0.5]])
+def test_invalid_index(key):
+    x = array([1, 2, 3, 4, 5])
+    with pytest.raises(TypeError):
+        x[key]
+
+
+def test_negative_index_write():
+    x = array([1, 2, 3, 4, 5])
+    x[-1] = 50
+    _assert_numpy(x, [[1, 2, 3, 4, 50]])

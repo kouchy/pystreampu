@@ -227,10 +227,14 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Args:
             self (Socket): input data
-            key (int|slice|list): place to write the new data
+            key (int|slice|list): place to read (as for a 1D NumPy array)
 
         Returns:
             out (Socket): self[key]
+
+        Raises:
+            IndexError: if an index is out of the frame (this also ends `iter(socket)`)
+            TypeError: if `key` is not an index, a slice or a list of indices
 
         """
 
@@ -321,6 +325,18 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  updated self (in-place operation)
+
+        """
+
+    def __iter__(self):
+        """
+        Iterate over the elements of a frame: `self[0]`, `self[1]`, ..., `self[len(self) - 1]`.
+
+        Args:
+            self (Socket): input data
+
+        Yields:
+            out (Socket): one socket per element
 
         """
 
@@ -631,8 +647,12 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Args:
             self (Socket): input data
-            key (int|slice|list): place to write the new data
+            key (int|slice|list): place to write the new data (as for a 1D NumPy array)
             data (SocketLike): new data
+
+        Raises:
+            IndexError: if an index is out of the frame
+            TypeError: if `key` is not an index, a slice or a list of indices
 
         """
 
