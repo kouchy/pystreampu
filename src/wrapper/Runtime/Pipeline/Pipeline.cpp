@@ -71,7 +71,7 @@ pyspu::wrapper::wrap_pipeline(py::handle scope)
             puids (list[list[int]]): processing units of the threads of each stage
     )pbdoc",
                        py::return_value_policy::take_ownership);
-    pipeline_class.def("get_original_modules", &spu::runtime::Pipeline::get_original_modules,
+    pipeline_class.def("get_original_modules", &spu::runtime::Pipeline::get_original_modules, py::return_value_policy::reference,
                        "Return the modules created by the user, one list per stage (without the clones and adaptors).");
 
     pipeline_class.def("exec",
@@ -93,11 +93,11 @@ pyspu::wrapper::wrap_pipeline(py::handle scope)
             file_name (str): path of the DOT file to write
     )pbdoc");
 
-    pipeline_class.def("get_modules_per_threads", &spu::runtime::Pipeline::get_modules_per_threads, "Return the modules of each thread, for all the stages.");
-    pipeline_class.def("get_modules_per_types", &spu::runtime::Pipeline::get_modules_per_types, "Return the modules grouped by type, for all the stages.");
-    pipeline_class.def("get_tasks_per_types", &spu::runtime::Pipeline::get_tasks_per_types, "Return the tasks grouped by type, for all the stages.");
-    pipeline_class.def("get_tasks_per_threads", &spu::runtime::Pipeline::get_tasks_per_threads, "Return the tasks of each thread, for all the stages.");
-    pipeline_class.def("__getitem__", &spu::runtime::Pipeline::operator[], py::is_operator());
+    pipeline_class.def("get_modules_per_threads", &spu::runtime::Pipeline::get_modules_per_threads, py::return_value_policy::reference, "Return the modules of each thread, for all the stages.");
+    pipeline_class.def("get_modules_per_types", &spu::runtime::Pipeline::get_modules_per_types, py::return_value_policy::reference, "Return the modules grouped by type, for all the stages.");
+    pipeline_class.def("get_tasks_per_types", &spu::runtime::Pipeline::get_tasks_per_types, py::return_value_policy::reference, "Return the tasks grouped by type, for all the stages.");
+    pipeline_class.def("get_tasks_per_threads", &spu::runtime::Pipeline::get_tasks_per_threads, py::return_value_policy::reference, "Return the tasks of each thread, for all the stages.");
+    pipeline_class.def("__getitem__", &spu::runtime::Pipeline::operator[], py::return_value_policy::reference, py::is_operator());
     pipeline_class.def("bind_adaptors", &spu::runtime::Pipeline::bind_adaptors, "Bind the adaptors that connect the stages (done when the pipeline is built).");
     pipeline_class.def("unbind_adaptors", &spu::runtime::Pipeline::unbind_adaptors, "Unbind the adaptors and restore the original bindings of the tasks.");
     pipeline_class.def("is_bound_adaptors", &spu::runtime::Pipeline::is_bound_adaptors, "Return True if the adaptors are bound.");
