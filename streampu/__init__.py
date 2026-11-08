@@ -30,7 +30,7 @@ from streampu._ext.ite import Iterator
 from streampu._ext.ran import Range
 from streampu._ext.reporter import Reporter, Reporter_probe
 from streampu._ext.set import Set
-from streampu._ext.sfl import Stateful_core
+from streampu._ext.sfl import Stateful, Stateful_core
 from streampu._ext.slp import Sleeper
 from streampu._ext.swi import Switcher
 from streampu._ext.terminal import Terminal, Terminal_dump, Terminal_std

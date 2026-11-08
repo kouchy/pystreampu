@@ -9,7 +9,7 @@ package, generated from their docstrings. For explanations and examples, see the
 | [Core classes](core.md) | `Socket`, `Task`, `Module`, data types |
 | [Sockets](sockets.md) | creating sockets, data types |
 | [Operators](operators.md) | arithmetic, comparison, bitwise and unary operators, reductions |
-| [Modules](modules.md) | `Stateless`, `Stateful_core`, Julia modules, built-in modules, probes, reporters |
+| [Modules](modules.md) | `Stateless`, `Stateful`, `Stateful_core`, Julia modules, built-in modules, probes, reporters |
 | [Execution](execution.md) | `Sequence` and `Pipeline` |
 | [Tools](tools.md) | helpers to build C++ extensions |
 

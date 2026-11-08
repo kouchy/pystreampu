@@ -68,6 +68,8 @@ class Terminal_dump(Terminal_std):
         """
         Build a terminal.
 
+        The terminal keeps the reporters alive (the list given here).
+
         Args:
             reporters (list[Reporter]): reporters to display
         """
@@ -80,6 +82,8 @@ class Terminal_std(Terminal):
     def __init__(self, reporters: collections.abc.Sequence[streampu._ext.reporter.Reporter]) -> None:
         """
         Build a terminal.
+
+        The terminal keeps the reporters alive (the list given here).
 
         Args:
             reporters (list[Reporter]): reporters to display

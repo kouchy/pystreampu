@@ -44,17 +44,24 @@ pyspu::wrapper::wrap_terminal(py::module_& scope)
     )pbdoc");
 
     auto ter_std_class = py::class_<spu::tools::Terminal_std, spu::tools::Terminal>(scope, "Terminal_std", "Terminal that prints the reports as aligned columns.");
-    ter_std_class.def(py::init<const std::vector<spu::tools::Reporter*>&>(), "reporters"_a, R"pbdoc(
+    // keep_alive<1, 2>: the terminal keeps the list of the reporters (and so the reporters) alive,
+    // it only stores pointers to them
+    ter_std_class.def(py::init<const std::vector<spu::tools::Reporter*>&>(), "reporters"_a, py::keep_alive<1, 2>(), R"pbdoc(
         Build a terminal.
+
+        The terminal keeps the reporters alive (the list given here).
 
         Args:
             reporters (list[Reporter]): reporters to display
     )pbdoc");
-    ter_std_class.def_property_readonly("reporters", &spu::tools::Terminal_std::get_reporters, "Reporters displayed by the terminal.");
+    // reference_internal: the reporters belong to their Python objects, not to the returned list
+    ter_std_class.def_property_readonly("reporters", &spu::tools::Terminal_std::get_reporters, py::return_value_policy::reference_internal, "Reporters displayed by the terminal.");
 
     auto ter_dmp_class = py::class_<spu::tools::Terminal_dump, spu::tools::Terminal_std>(scope, "Terminal_dump", "Terminal that prints one line per report (no overwritten temporary line), e.g. to a file.");
-    ter_dmp_class.def(py::init<const std::vector<spu::tools::Reporter*>&>(), "reporters"_a, R"pbdoc(
+    ter_dmp_class.def(py::init<const std::vector<spu::tools::Reporter*>&>(), "reporters"_a, py::keep_alive<1, 2>(), R"pbdoc(
         Build a terminal.
+
+        The terminal keeps the reporters alive (the list given here).
 
         Args:
             reporters (list[Reporter]): reporters to display
