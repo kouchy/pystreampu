@@ -281,7 +281,7 @@ def _compile_trampoline(
             itp_name = f"_itp_{dt_name}"
             ns[itp_name] = get_inttoptr(dt_name)
             lines.append(
-                f"    {vname} = _carray({itp_name}(extra_ptrs[{offset}]), (extra_ptrs[{offset + 1}], extra_ptrs[{offset + 2}]))"
+                f"    {vname} = _carray({itp_name}(extra_ptrs[{offset}]), (extra_ptrs[{offset + 1}], extra_ptrs[{offset + 2}]))"  # noqa: E501
             )
             offset += 3
         elif kind == "scalar":
