@@ -83,21 +83,55 @@ pyspu::wrapper::wrap_stateless(py::handle scope)
     )pbdoc",
       py::return_value_policy::reference);
 
-    stateless_class.def("create_codelet",
-      [](Stateless& mdl, spu::runtime::Task& task,
-         const py::typing::Callable<int(spu::module::Module&, spu::runtime::Task&, size_t)>& codelet)
-      { mdl.create_codelet(task, pyspu::wrapper::python_codelet(codelet)); },
-      "task"_a, "codelet"_a, R"pbdoc(
+    stateless_class.def(
+      "create_codelet",
+      [](py::handle mdl_h, spu::runtime::Task& task, py::object codelet)
+      {
+          // Fast path: if `codelet` is a `spu.numba_codelet` descriptor or a Numba `@njit`
+          // `CPUDispatcher` (detected via its `py_func` and `overloads` attributes), compile a
+          // GIL-free `@cfunc` trampoline and bind its C function pointer via `create_codelet_cfunc`.
+          if (py::hasattr(codelet, "_is_numba_codelet") ||
+              (py::hasattr(codelet, "py_func") && py::hasattr(codelet, "overloads")))
+          {
+              py::module_::import("streampu._numba")
+                .attr("register_numba_codelet")(mdl_h, py::cast(&task, py::return_value_policy::reference), codelet);
+              return;
+          }
+          auto& mdl = mdl_h.cast<Stateless&>();
+          mdl.create_codelet(task, pyspu::wrapper::python_codelet(codelet.cast<py::function>()));
+      },
+      "task"_a,
+      "codelet"_a,
+      R"pbdoc(
         Set the function executed by a task (its codelet).
 
         The codelet is called as `codelet(module, task, frame_id)` and must return 0 on
         success. Inside it, the data of the sockets are reached with `task.<name>.numpy`;
         outputs must be written in place (`out[:] = ...`).
+        Alternatively, `codelet` may be a Numba `@njit` function taking the task's data
+        sockets as 2D NumPy views (`wave`), or a `streampu.numba_codelet(...)` descriptor,
+        which is compiled into a GIL-free `@cfunc` trampoline called directly from C++.
 
         Args:
             task (Task): a task created with `create_task`
             codelet (Callable): the function to execute
     )pbdoc");
+
+    stateless_class.def(
+      "create_codelet_cfunc",
+      [](Stateless& mdl,
+         spu::runtime::Task& task,
+         const uintptr_t cfunc_addr,
+         py::object keep_alive,
+         py::object extra_args_packer)
+      {
+          mdl.create_codelet(
+            task, pyspu::wrapper::numba_cfunc_codelet(cfunc_addr, std::move(keep_alive), std::move(extra_args_packer)));
+      },
+      "task"_a,
+      "cfunc_addr"_a,
+      "keep_alive"_a = py::none(),
+      "extra_args_packer"_a = py::none());
 
     //stateless_class.def("deep_copy", &Stateless::deep_copy);
 

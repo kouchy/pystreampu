@@ -76,7 +76,7 @@ pyspu::wrapper::wrap_module_julia(py::handle scope)
                           &Module_Julia::set_jl_safety,
                           R"pbdoc(
         If True (default), a Julia exception in a codelet is caught and raised as a Python
-        spu.exceptions.RuntimeError with the Julia stack trace. False calls the codelets directly (faster).
+        spu.exceptions.JuliaError with the Julia stack trace. False calls the codelets directly (faster).
     )pbdoc");
 
     mj_class.def("is_eval", &Module_Julia::is_eval, "True if the Julia code of the module has been evaluated.");

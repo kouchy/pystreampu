@@ -36,7 +36,7 @@ def test_runtime():
     assert spu.julia.is_init()
     assert spu.Julia.get_n_proxies() > 0
     spu.julia.eval("t_runtime_double(x) = 2x")
-    with pytest.raises(spu.exceptions.RuntimeError, match="t_runtime_undefined"):
+    with pytest.raises(spu.exceptions.JuliaError, match="t_runtime_undefined"):
         spu.julia.eval("t_runtime_undefined()")
 
 
@@ -112,7 +112,7 @@ def test_codelet_already_defined():
 def test_julia_exception_in_codelet():
     mdl = make_stateless("t_boom", 't_boom(sck_in, sck_out, f, n) = error("t_boom failed")')
     assert mdl.jl_safe
-    with pytest.raises(spu.exceptions.RuntimeError, match="t_boom failed"):
+    with pytest.raises(spu.exceptions.JuliaError, match="t_boom failed"):
         mdl.t_boom(spu.array(np.zeros(N, dtype=np.int32)))
     mdl.jl_safe = False
     assert not mdl.jl_safe

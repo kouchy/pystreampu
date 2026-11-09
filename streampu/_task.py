@@ -23,18 +23,20 @@ def _setattr_impl(self: Task, attr: str, value: Any) -> Union[tuple, Socket, Non
         attr (str): attribute name
         value (Any): Value to set
     """
-    if attr in [s.name for s in self.sockets]:
-        sck = self.module[f"{self.name}::{attr}"]
-        sck.bind(value)
-    else:
-        object.__setattr__(self, attr, value)
+    for s in self.sockets:
+        if s.name == attr:
+            self[attr].bind(value)
+            return
+    object.__setattr__(self, attr, value)
 
 
 def _getattr_impl(self: Task, attr: str) -> Union[tuple, Socket, None]:
     """Overload __getattr__ of streampu._ext.core.Task.
 
-    task[socket_name] will return the socket named `socket_name`
-    of the task.
+    task.<socket_name> returns the socket named `socket_name` of the task.
+    Note: `Task.__getitem__` (and `Codelet_call_cache::init`) caches the resolved `Socket`
+    in `self.__dict__[attr]`, so subsequent `task.<socket_name>` accesses hit `self.__dict__`
+    directly in C without calling `__getattr__`.
 
     Args:
         self (Task): A Task
@@ -43,8 +45,9 @@ def _getattr_impl(self: Task, attr: str) -> Union[tuple, Socket, None]:
     Returns:
         out (Socket): the task socket named 'sck_name'
     """
-    if attr in [s.name for s in self.sockets]:
-        return self.module[f"{self.name}::{attr}"]
+    for s in self.sockets:
+        if s.name == attr:
+            return self[attr]
 
     return object.__getattribute__(self, attr)
 

@@ -29,7 +29,7 @@ class Julia:
             code (str): Julia code
 
         Raises:
-            spu.exceptions.RuntimeError: if the evaluation raises a Julia exception
+            spu.exceptions.JuliaError: if the evaluation raises a Julia exception
         """
 
     @staticmethod
@@ -41,8 +41,8 @@ class Julia:
             path (str | os.PathLike): path of the `.jl` file
 
         Raises:
-            spu.exceptions.RuntimeError: if the file cannot be read, or if its evaluation
-                raises a Julia exception
+            spu.exceptions.JuliaError: if the evaluation raises a Julia exception
+            spu.exceptions.RuntimeError: if the file cannot be read
         """
 
     @staticmethod
@@ -140,7 +140,7 @@ class Module_Julia:
     def jl_safe(self) -> bool:
         """
         If True (default), a Julia exception in a codelet is caught and raised as a Python
-        spu.exceptions.RuntimeError with the Julia stack trace. False calls the codelets directly (faster).
+        spu.exceptions.JuliaError with the Julia stack trace. False calls the codelets directly (faster).
         """
 
     @jl_safe.setter

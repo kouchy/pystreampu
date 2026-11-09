@@ -23,6 +23,117 @@ std::map<std::type_index, std::string> type_map = { { typeid(int8_t), py::format
                                                     { typeid(float), py::format_descriptor<float>::format() },
                                                     { typeid(double), py::format_descriptor<double>::format() } };
 
+namespace
+{
+// Per-Socket-wrapper cache of the `numpy` and `wave` 2D NumPy `ndarray` views.
+//
+// Why this cache exists:
+// - Previously, every access to `sck.wave` or `sck.numpy` inside a Python codelet constructed
+//   a brand-new `py::capsule`, a new `py::buffer_info` (with heap-allocated `shape` and `strides`
+//   vectors), and a new `PyArrayObject` via NumPy's C-API (~800 ns per socket access).
+// - By enabling `py::dynamic_attr()` on `Socket`, each Python `Socket` wrapper has an instance
+//   `__dict__` where we store a `PyCapsule` owning a `Socket_view_cache` (automatically freed when
+//   the Python `Socket` wrapper is garbage-collected).
+// - On subsequent accesses with the same dimensions `(n_row, n_col)`, we reuse the cached
+//   `py::array` directly. If the underlying C++ socket `dataptr` changed (e.g., when advancing to
+//   a new wave within a multi-wave buffer or after rebinding), we update the `PyArrayObject`'s
+//   internal `data` pointer in place (`array_proxy(arr)->data = dataptr`) in a single pointer
+//   store, with zero allocations.
+struct Socket_view_cache
+{
+    struct Entry
+    {
+        size_t rows = 0;
+        size_t cols = 0;
+        void* ptr = nullptr;
+        py::array arr;
+    };
+    Entry wave;
+    Entry numpy;
+};
+
+// Retrieve (or lazily allocate) the `Socket_view_cache` attached to `self_h.__dict__`.
+inline Socket_view_cache*
+get_socket_view_cache(py::handle self_h)
+{
+    static PyObject* k_cache_key = PyUnicode_InternFromString("_spu_view_cache");
+    PyObject** dict_ptr = _PyObject_GetDictPtr(self_h.ptr());
+    if (dict_ptr == nullptr) return nullptr;
+    if (*dict_ptr == nullptr)
+    {
+        *dict_ptr = PyDict_New();
+        if (*dict_ptr == nullptr) return nullptr;
+    }
+    PyObject* cap = PyDict_GetItemWithError(*dict_ptr, k_cache_key);
+    if (cap != nullptr)
+        return static_cast<Socket_view_cache*>(PyCapsule_GetPointer(cap, "spu_socket_view_cache"));
+
+    auto* cache = new Socket_view_cache();
+    py::capsule py_cap(cache, "spu_socket_view_cache", [](void* p) { delete static_cast<Socket_view_cache*>(p); });
+    PyDict_SetItem(*dict_ptr, k_cache_key, py_cap.ptr());
+    return cache;
+}
+
+// Fast-path getter for `Socket.wave` (`is_wave = true`) and `Socket.numpy` (`is_wave = false`).
+inline py::array
+get_cached_socket_array(py::handle self_h, const spu::runtime::Socket& self, const bool is_wave)
+{
+    void* dataptr = self.get_dataptr();
+    if (dataptr == nullptr)
+        return py::array(py::buffer_info(nullptr, self.get_datatype_size(), type_map[self.get_datatype()], {}));
+
+    const auto& mdl = self.get_task().get_module();
+    const size_t n_frames = mdl.get_n_frames();
+    const size_t n_row = is_wave ? mdl.get_n_frames_per_wave() : n_frames;
+    const size_t n_col = self.get_n_elmts() / n_frames;
+
+    if (Socket_view_cache* cache = get_socket_view_cache(self_h))
+    {
+        auto& entry = is_wave ? cache->wave : cache->numpy;
+        // Fast path: dimensions match the cached `ndarray` view; only patch `data` if `dataptr` moved.
+        if (entry.rows == n_row && entry.cols == n_col && entry.arr)
+        {
+            if (entry.ptr != dataptr)
+            {
+                py::detail::array_proxy(entry.arr.ptr())->data = static_cast<char*>(dataptr);
+                entry.ptr = dataptr;
+            }
+            return entry.arr;
+        }
+
+        // Slow path (first access, or after `n_frames` / `n_frames_per_wave` changed):
+        // allocate the 2D `ndarray` view once and cache it. Input sockets (`SIN`) are marked read-only.
+        py::capsule buffer_handle([]() {});
+        const size_t dt_size = (size_t)self.get_datatype_size();
+        entry.arr = py::array(
+          py::buffer_info(dataptr,
+                          (ssize_t)dt_size,
+                          type_map[self.get_datatype()],
+                          2,
+                          { n_row, n_col },
+                          { dt_size * n_col, dt_size },
+                          self.get_type() == socket_t::SIN),
+          buffer_handle);
+        entry.rows = n_row;
+        entry.cols = n_col;
+        entry.ptr = dataptr;
+        return entry.arr;
+    }
+
+    py::capsule buffer_handle([]() {});
+    const size_t dt_size = (size_t)self.get_datatype_size();
+    return py::array(
+      py::buffer_info(dataptr,
+                      (ssize_t)dt_size,
+                      type_map[self.get_datatype()],
+                      2,
+                      { n_row, n_col },
+                      { dt_size * n_col, dt_size },
+                      self.get_type() == socket_t::SIN),
+      buffer_handle);
+}
+} // namespace
+
 void
 pyspu::wrapper::wrap_socket(py::handle scope)
 {
@@ -63,29 +174,10 @@ pyspu::wrapper::wrap_socket(py::handle scope)
       });
     py_socket.def_property_readonly(
       "wave",
-      [](const spu::runtime::Socket& self) -> py::array
+      [](py::handle self_h) -> py::array
       {
-          if (self.get_dataptr() == nullptr)
-              return py::array(py::buffer_info(nullptr, 1, type_map[self.get_datatype()], {}));
-
-          // Use this if the C++ buffer should NOT be deallocated
-          // once Python no longer has a reference to it
-          py::capsule buffer_handle([]() {});
-
-          size_t n_frames = self.get_task().get_module().get_n_frames();
-          size_t n_row = self.get_task().get_module().get_n_frames_per_wave();
-          size_t n_col = self.get_n_elmts() / n_frames;
-
-          return py::array(
-            py::buffer_info(self.get_dataptr(),            /* Pointer to buffer */
-                            self.get_datatype_size(),      /* Size of one scalar */
-                            type_map[self.get_datatype()], /* Python struct-style format
-                                                              descriptor */
-                            2,                             /* Number of dimensions */
-                            { n_row, n_col },              /* Buffer dimensions */
-                            { (size_t)self.get_datatype_size() * n_col, (size_t)self.get_datatype_size() },
-                            self.get_type() == socket_t::SIN),
-            buffer_handle);
+          const auto& self = self_h.cast<const spu::runtime::Socket&>();
+          return get_cached_socket_array(self_h, self, true);
       },
       "NumPy view (without copy) of the frames of the current wave (`n_frames_per_wave` rows).");
 
@@ -116,10 +208,10 @@ pyspu::wrapper::wrap_socket(py::handle scope)
 
     py_socket.def_property_readonly(
       "numpy",
-      [](spu::runtime::Socket& self)
+      [](py::handle self_h) -> py::array
       {
-          py::array array = py::cast(self);
-          return array;
+          const auto& self = self_h.cast<const spu::runtime::Socket&>();
+          return get_cached_socket_array(self_h, self, false);
       },
       "NumPy view of the data of the socket (no copy), with one row per frame.");
 

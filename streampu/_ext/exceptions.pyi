@@ -5,6 +5,7 @@ __all__: list[str] = [
     "ControlFlowError",
     "DomainError",
     "InvalidArgument",
+    "JuliaError",
     "LengthError",
     "LogicError",
     "OutOfRange",
@@ -35,6 +36,11 @@ class DomainError(Exception):
 class InvalidArgument(Exception):
     """
     An argument has an invalid value.
+    """
+
+class JuliaError(Exception):
+    """
+    Error raised by the Julia runtime or a Julia codelet.
     """
 
 class LengthError(Exception):
