@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import collections.abc
 import typing
 
 import streampu._ext
@@ -21,25 +20,29 @@ class Stateless(streampu._ext.core.Module):
         Build an empty module: add tasks with `create_task`.
         """
 
-    def create_codelet(
-        self,
-        task: streampu._ext.core.Task,
-        codelet: collections.abc.Callable[
-            [streampu._ext.core.Module, streampu._ext.core.Task, typing.SupportsInt | typing.SupportsIndex], int
-        ],
-    ) -> None:
+    def create_codelet(self, task: streampu._ext.core.Task, codelet: typing.Any) -> None:
         """
         Set the function executed by a task (its codelet).
 
         The codelet is called as `codelet(module, task, frame_id)` and must return 0 on
         success. Inside it, the data of the sockets are reached with `task.<name>.numpy`;
         outputs must be written in place (`out[:] = ...`).
+        Alternatively, `codelet` may be a Numba `@njit` function taking the task's data
+        sockets as 2D NumPy views (`wave`), or a `streampu.numba_codelet(...)` descriptor,
+        which is compiled into a GIL-free `@cfunc` trampoline called directly from C++.
 
         Args:
             task (Task): a task created with `create_task`
             codelet (Callable): the function to execute
         """
 
+    def create_codelet_cfunc(
+        self,
+        task: streampu._ext.core.Task,
+        cfunc_addr: typing.SupportsInt | typing.SupportsIndex,
+        keep_alive: typing.Any = None,
+        extra_args_packer: typing.Any = None,
+    ) -> None: ...
     def create_socket_fwd(
         self,
         task: streampu._ext.core.Task,
