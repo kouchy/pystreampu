@@ -817,6 +817,12 @@ class Socket(streampu._ext.interfaces.Interface_reset):
         NumPy view (without copy) of the frames of the current wave (`n_frames_per_wave` rows).
         """
 
+    @property
+    def memoryview(self) -> memoryview:
+        """
+        1D memoryview (without copy) of the elements of the current wave.
+        """
+
 class Task:
     """
 

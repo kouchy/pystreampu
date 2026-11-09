@@ -14,6 +14,28 @@ using namespace spu::module;
 using namespace pyspu::wrapper;
 using namespace spu::runtime;
 
+namespace
+{
+binaryfunc orig_task_mp_subscript = nullptr;
+
+// Direct C `tp_as_mapping->mp_subscript` slot for `Task[key]`:
+// When `key` is already cached in `self.__dict__` (pre-populated by `Codelet_call_cache::init`
+// or on first access), returns `Py_NewRef(cached)` directly in 1 C call (~5 ns), bypassing
+// `slot_mp_subscript` and `pybind11::cpp_function::dispatcher`.
+PyObject*
+task_mp_subscript(PyObject* self, PyObject* key)
+{
+    PyObject** dict_ptr = _PyObject_GetDictPtr(self);
+    if (dict_ptr != nullptr && *dict_ptr != nullptr)
+    {
+        PyObject* cached = PyDict_GetItemWithError(*dict_ptr, key);
+        if (cached != nullptr)
+            return Py_NewRef(cached);
+    }
+    return orig_task_mp_subscript(self, key);
+}
+} // namespace
+
 void
 pyspu::wrapper::wrap_task(py::handle scope)
 {
@@ -168,6 +190,15 @@ pyspu::wrapper::wrap_task(py::handle scope)
           return py::cast(&m[t.get_name() + "::" + s], py::return_value_policy::reference);
       },
       py::is_operator());
+
+    {
+        auto* task_type = reinterpret_cast<PyTypeObject*>(py_task.ptr());
+        if (task_type->tp_as_mapping != nullptr && task_type->tp_as_mapping->mp_subscript != nullptr)
+        {
+            orig_task_mp_subscript = task_type->tp_as_mapping->mp_subscript;
+            task_type->tp_as_mapping->mp_subscript = &task_mp_subscript;
+        }
+    }
     py_task.def_property_readonly("module", &spu::runtime::Task::get_module, "Module that owns the task.");
     py_task.def_property("debug", &spu::runtime::Task::is_debug, &spu::runtime::Task::set_debug,
                          "If True, print the content of the sockets at each execution.");

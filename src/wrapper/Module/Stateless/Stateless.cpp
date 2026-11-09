@@ -87,6 +87,12 @@ pyspu::wrapper::wrap_stateless(py::handle scope)
       "create_codelet",
       [](py::handle mdl_h, spu::runtime::Task& task, py::object codelet)
       {
+          if (codelet.is_none())
+          {
+              auto& mdl = mdl_h.cast<Stateless&>();
+              pyspu::wrapper::register_empty_cpp_codelet(mdl, task, 0);
+              return;
+          }
           // Fast path: if `codelet` is a `spu.numba_codelet` descriptor or a Numba `@njit`
           // `CPUDispatcher` (detected via its `py_func` and `overloads` attributes), compile a
           // GIL-free `@cfunc` trampoline and bind its C function pointer via `create_codelet_cfunc`.
@@ -101,7 +107,7 @@ pyspu::wrapper::wrap_stateless(py::handle scope)
           mdl.create_codelet(task, pyspu::wrapper::python_codelet(codelet.cast<py::function>()));
       },
       "task"_a,
-      "codelet"_a,
+      "codelet"_a = py::none(),
       R"pbdoc(
         Set the function executed by a task (its codelet).
 
@@ -109,13 +115,21 @@ pyspu::wrapper::wrap_stateless(py::handle scope)
         success. Inside it, the data of the sockets are reached with `task.<name>.numpy`;
         outputs must be written in place (`out[:] = ...`).
         Alternatively, `codelet` may be a Numba `@njit` function taking the task's data
-        sockets as 2D NumPy views (`wave`), or a `streampu.numba_codelet(...)` descriptor,
-        which is compiled into a GIL-free `@cfunc` trampoline called directly from C++.
+        sockets as 2D NumPy views (`wave`), a `streampu.numba_codelet(...)` descriptor,
+        or `None` to bind a native C++ empty codelet.
 
         Args:
             task (Task): a task created with `create_task`
-            codelet (Callable): the function to execute
+            codelet (Callable | None): the function to execute
     )pbdoc");
+
+    stateless_class.def(
+      "create_codelet_empty",
+      [](Stateless& mdl, spu::runtime::Task& task, const int capture_mode)
+      { pyspu::wrapper::register_empty_cpp_codelet(mdl, task, capture_mode); },
+      "task"_a,
+      "capture_mode"_a = 0,
+      "Register a native C++ empty codelet on `task` (for runtime overhead benchmarking).");
 
     stateless_class.def(
       "create_codelet_cfunc",
@@ -125,8 +139,8 @@ pyspu::wrapper::wrap_stateless(py::handle scope)
          py::object keep_alive,
          py::object extra_args_packer)
       {
-          mdl.create_codelet(
-            task, pyspu::wrapper::numba_cfunc_codelet(cfunc_addr, std::move(keep_alive), std::move(extra_args_packer)));
+          pyspu::wrapper::register_numba_cfunc_codelet(
+            mdl, task, cfunc_addr, std::move(keep_alive), std::move(extra_args_packer));
       },
       "task"_a,
       "cfunc_addr"_a,

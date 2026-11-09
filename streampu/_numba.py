@@ -236,6 +236,35 @@ def _compile_trampoline(
         "_np": np,
     }
 
+    # Direct C-ABI fast path for stateless codelets with 0..16 data sockets:
+    # socket data pointers are passed directly as `uintp` arguments (in CPU registers / C call frame)
+    # without a stack `sck_ptrs` array or loop, matching `k_max_direct_numba_sockets = 16` in C++.
+    if not extra_spec and 0 <= len(sck_spec) <= 16:
+        if len(sck_spec) == 0:
+            lines = [
+                "def _numba_trampoline(n_frames_per_wave):",
+                "    return _np.int32(_kernel())",
+            ]
+        else:
+            p_args = ", ".join(f"p_{idx}" for idx in range(len(sck_spec)))
+            lines = [f"def _numba_trampoline({p_args}, n_frames_per_wave):"]
+            sck_vars = []
+            for idx, (dt_name, n_cols) in enumerate(sck_spec):
+                vname = f"s_{idx}"
+                sck_vars.append(vname)
+                itp_name = f"_itp_{dt_name}"
+                ns[itp_name] = get_inttoptr(dt_name)
+                lines.append(f"    {vname} = _carray({itp_name}(p_{idx}), (n_frames_per_wave, {int(n_cols)}))")
+            args_str = ", ".join(sck_vars)
+            lines.append(f"    return _np.int32(_kernel({args_str}))")
+        src = "\n".join(lines)
+        exec(src, ns)
+        tramp_py = ns["_numba_trampoline"]
+        reg_sig = types.int32(*([types.uintp] * len(sck_spec) + [types.intp]))
+        compiled_cfunc = cfunc(reg_sig, nogil=True, fastmath=True)(tramp_py)
+        _CFUNC_CACHE[cache_key] = compiled_cfunc
+        return compiled_cfunc
+
     lines = ["def _numba_trampoline(sck_ptrs, extra_ptrs, frame_id, n_frames_per_wave):"]
     # 1. Unpack optional per-clone extra arguments (`arr1d`, `arr2d`, or `scalar`) from `extra_ptrs`.
     extra_vars = []
