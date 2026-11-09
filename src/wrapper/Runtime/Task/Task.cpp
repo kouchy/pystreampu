@@ -17,7 +17,7 @@ using namespace spu::runtime;
 void
 pyspu::wrapper::wrap_task(py::handle scope)
 {
-    py::class_<spu::runtime::Task> py_task(scope, "Task", R"pbdoc(
+    py::class_<spu::runtime::Task> py_task(scope, "Task", py::dynamic_attr(), R"pbdoc(
         A processing step of a module: the code executed by a node of the data-flow graph.
 
         A task reads its input sockets, writes its output sockets and modifies its forward
@@ -128,12 +128,46 @@ pyspu::wrapper::wrap_task(py::handle scope)
         Raises:
             RuntimeError: if some sockets have no data (see `can_exec`)
     )pbdoc");
-    py_task.def("__getitem__",
-                [](spu::runtime::Task& t, const std::string& s)
-                {
-                    auto& m = t.get_module();
-                    return py::cast(&m[t.get_name() + "::" + s]);
-                }, py::is_operator());
+    // Fast socket lookup by name (`task["in"]` or `task.in`):
+    // - `Task` is registered with `py::dynamic_attr()`, giving each Python `Task` wrapper an
+    //   instance `__dict__`.
+    // - First checks `self_h.__dict__` via `PyDict_GetItemWithError` (O(1) pointer-hash lookup
+    //   when the key is an interned string literal in Python bytecode, without converting `key_h`
+    //   to `std::string` or calling `Module::operator[]`).
+    // - On a cache miss, resolves the socket once from `t.sockets`, caches the resulting Python
+    //   `Socket` wrapper in `self_h.__dict__` (which also makes subsequent `task.<name>` attribute
+    //   accesses hit `__dict__` directly without invoking `Task.__getattr__`), and returns it.
+    py_task.def(
+      "__getitem__",
+      [](py::handle self_h, py::handle key_h) -> py::object
+      {
+          PyObject** dict_ptr = _PyObject_GetDictPtr(self_h.ptr());
+          if (dict_ptr != nullptr && *dict_ptr != nullptr)
+          {
+              PyObject* cached = PyDict_GetItemWithError(*dict_ptr, key_h.ptr());
+              if (cached != nullptr)
+                  return py::reinterpret_borrow<py::object>(cached);
+          }
+
+          auto& t = self_h.cast<spu::runtime::Task&>();
+          const std::string s = py::cast<std::string>(key_h);
+          for (auto& sck : t.sockets)
+          {
+              if (sck->get_name() == s)
+              {
+                  py::object py_sck = py::cast(sck.get(), py::return_value_policy::reference);
+                  if (dict_ptr != nullptr)
+                  {
+                      if (*dict_ptr == nullptr) *dict_ptr = PyDict_New();
+                      if (*dict_ptr != nullptr) PyDict_SetItem(*dict_ptr, key_h.ptr(), py_sck.ptr());
+                  }
+                  return py_sck;
+              }
+          }
+          auto& m = t.get_module();
+          return py::cast(&m[t.get_name() + "::" + s], py::return_value_policy::reference);
+      },
+      py::is_operator());
     py_task.def_property_readonly("module", &spu::runtime::Task::get_module, "Module that owns the task.");
     py_task.def_property("debug", &spu::runtime::Task::is_debug, &spu::runtime::Task::set_debug,
                          "If True, print the content of the sockets at each execution.");

@@ -876,8 +876,10 @@ class Task:
         """
         Overload __getattr__ of streampu._ext.core.Task.
 
-        task[socket_name] will return the socket named `socket_name`
-        of the task.
+        task.<socket_name> returns the socket named `socket_name` of the task.
+        Note: `Task.__getitem__` (and `Codelet_call_cache::init`) caches the resolved `Socket`
+        in `self.__dict__[attr]`, so subsequent `task.<socket_name>` accesses hit `self.__dict__`
+        directly in C without calling `__getattr__`.
 
         Args:
             self (Task): A Task
@@ -888,7 +890,7 @@ class Task:
 
         """
 
-    def __getitem__(self, arg0: str) -> typing.Any: ...
+    def __getitem__(self, arg0: typing.Any) -> typing.Any: ...
     def __setattr__(self, attr: str, value: typing.Any) -> tuple | Socket | None:
         """
         Overload __setattr__ of streampu._ext.core.Task.

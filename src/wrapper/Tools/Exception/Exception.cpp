@@ -11,6 +11,7 @@ pyspu::wrapper::wrap_exceptions(py::module_& scope)
     py::register_exception<spu::tools::control_flow_error>(scope, "ControlFlowError").attr("__doc__") = "Error in the control flow of a sequence (switchers, loops).";
     py::register_exception<spu::tools::domain_error>(scope, "DomainError").attr("__doc__") = "A value is outside the domain of a function.";
     py::register_exception<spu::tools::invalid_argument>(scope, "InvalidArgument").attr("__doc__") = "An argument has an invalid value.";
+    py::register_exception<spu::tools::julia_error>(scope, "JuliaError").attr("__doc__") = "Error raised by the Julia runtime or a Julia codelet.";
     py::register_exception<spu::tools::length_error>(scope, "LengthError").attr("__doc__") = "A size is too large.";
     py::register_exception<spu::tools::logic_error>(scope, "LogicError").attr("__doc__") = "Error in the logic of the program.";
     py::register_exception<spu::tools::out_of_range>(scope, "OutOfRange").attr("__doc__") = "An index or a value is out of the expected range.";

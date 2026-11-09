@@ -79,6 +79,7 @@ from ._initializer import initializer
 # Proxies for min and max
 from ._minmax import max, min
 from ._module import Module
+from ._numba import numba_codelet
 from ._pipeline import Pipeline
 from ._probe import (
     AProbe,

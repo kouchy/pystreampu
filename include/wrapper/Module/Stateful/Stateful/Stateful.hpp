@@ -61,7 +61,19 @@ class Stateful_core : public Stateful
             result.inc_ref();
             auto owned = py::cast<Stateful_core*>(std::move(result));
             owned->set_cloned(true);
+            // Propagate module metadata and wave configuration (`single_wave`, `n_frames`,
+            // `n_frames_per_wave`) even if the Python `clone()` method initialized its base
+            // `Stateful_core` via the default constructor instead of the copy constructor.
+            owned->set_name(this->get_name());
+            owned->set_short_name(this->get_short_name());
+            if (!this->get_custom_name().empty())
+                owned->set_custom_name(this->get_custom_name());
+            owned->set_single_wave(this->is_single_wave());
             owned->deep_copy(*this); // deep copy C++ state
+            if (owned->get_n_frames() != this->get_n_frames())
+                owned->set_n_frames(this->get_n_frames());
+            if (!this->is_single_wave() && owned->get_n_frames_per_wave() != this->get_n_frames_per_wave())
+                owned->set_n_frames_per_wave(this->get_n_frames_per_wave());
             return owned; // release ownership to return a raw pointer, since clone() returns a raw pointer
         } // else should throw ?
         throw spu::tools::unimplemented_error(__FILE__, __LINE__, __func__, "clone_python_state method not implemented in python subclass of Stateful_core");
