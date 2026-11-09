@@ -41,6 +41,7 @@ class Module(streampu._ext.interfaces.Interface_clone, streampu._ext.interfaces.
             out (Task): if attr is formatted as 'task_name'
             out (Socket): if attr is formatted as 'task_name::socket_name'
 
+
         """
 
     def __getitem__(self, key: str) -> typing.Any:
@@ -67,6 +68,7 @@ class Module(streampu._ext.interfaces.Interface_clone, streampu._ext.interfaces.
             self (Module): A Module
             attr (str): attribute name (should name a task or a socket)
             tsk_sck (Task|Socket): socket to bind self[attr].
+
         """
 
     @property
@@ -158,6 +160,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  abs(self)
+
         """
 
     def __add__(self, value: SocketLike) -> Socket:
@@ -170,6 +173,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  self + value
+
         """
 
     def __and__(self, value: SocketLike) -> Socket:
@@ -182,6 +186,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  self & value
+
         """
 
     def __bool__(self) -> bool: ...
@@ -200,6 +205,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  value == self
+
         """
 
     def __ge__(self, value: SocketLike) -> Socket:
@@ -212,6 +218,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  self >= value
+
         """
 
     def __getitem__(self, key: slice | int | list) -> Socket:
@@ -228,6 +235,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
         Raises:
             IndexError: if an index is out of the frame (this also ends `iter(socket)`)
             TypeError: if `key` is not an index, a slice or a list of indices
+
         """
 
     def __gt__(self, value: SocketLike) -> Socket:
@@ -240,6 +248,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  self > value
+
         """
 
     def __iadd__(self, value: SocketLike) -> Socket:
@@ -252,6 +261,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  updated self (in-place operation)
+
         """
 
     def __iand__(self, value: SocketLike) -> Socket:
@@ -264,6 +274,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  updated self (in-place operation)
+
         """
 
     def __imul__(self, value: SocketLike) -> Socket:
@@ -276,6 +287,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  updated self (in-place operation)
+
         """
 
     def __invert__(self) -> Socket:
@@ -287,6 +299,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  ~self
+
         """
 
     def __ior__(self, value: SocketLike) -> Socket:
@@ -299,6 +312,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  updated self (in-place operation)
+
         """
 
     def __isub__(self, value: SocketLike) -> Socket:
@@ -311,6 +325,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  updated self (in-place operation)
+
         """
 
     def __iter__(self):
@@ -322,6 +337,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Yields:
             out (Socket): one socket per element
+
         """
 
     def __itruediv__(self, value: SocketLike) -> Socket:
@@ -334,6 +350,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  updated self (in-place operation)
+
         """
 
     def __ixor__(self, value: SocketLike) -> Socket:
@@ -346,6 +363,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  updated self (in-place operation)
+
         """
 
     def __le__(self, value: SocketLike) -> Socket:
@@ -358,6 +376,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  self <= value
+
         """
 
     def __len__(self) -> int:
@@ -369,6 +388,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (int): size of one frame
+
         """
 
     def __lt__(self, value: SocketLike) -> Socket:
@@ -381,6 +401,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  self < value
+
         """
 
     def __mul__(self, value: SocketLike) -> Socket:
@@ -393,6 +414,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  self * value
+
         """
 
     def __ne__(self, value: SocketLike) -> Socket:
@@ -405,6 +427,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  self != value
+
         """
 
     def __neg__(self) -> Socket:
@@ -416,6 +439,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  -self
+
         """
 
     def __or__(self, value: SocketLike) -> Socket:
@@ -428,6 +452,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  self | value
+
         """
 
     def __radd__(self, value: SocketLike) -> Socket:
@@ -440,6 +465,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  value + self
+
         """
 
     def __rand__(self, value: SocketLike) -> Socket:
@@ -452,6 +478,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  value & value
+
         """
 
     def __release_buffer__(self, buffer):
@@ -468,6 +495,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (str): a str representing the socket
+
         """
 
     def __req__(self, value: SocketLike) -> Socket:
@@ -480,6 +508,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  self == value
+
         """
 
     def __rge__(self, value: SocketLike) -> Socket:
@@ -492,6 +521,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  value >= self
+
         """
 
     def __rgt__(self, value: SocketLike) -> Socket:
@@ -504,6 +534,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  value > self
+
         """
 
     def __rle__(self, value: SocketLike) -> Socket:
@@ -516,6 +547,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  value <= self
+
         """
 
     def __rlt__(self, value: SocketLike) -> Socket:
@@ -528,6 +560,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  value < self
+
         """
 
     def __rmul__(self, value: SocketLike) -> Socket:
@@ -540,6 +573,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  value * self
+
         """
 
     def __rneq__(self, value: SocketLike) -> Socket:
@@ -552,6 +586,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  value != self
+
         """
 
     def __ror__(self, value: SocketLike) -> Socket:
@@ -564,6 +599,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  value | self
+
         """
 
     def __rsub__(self, value: SocketLike) -> Socket:
@@ -576,6 +612,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  value - self
+
         """
 
     def __rtruediv__(self, value: SocketLike) -> Socket:
@@ -588,6 +625,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  value / self
+
         """
 
     def __rxor__(self, value: SocketLike) -> Socket:
@@ -600,6 +638,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  value ^ self
+
         """
 
     def __setitem__(self, key: int | slice | list, data: SocketLike) -> Socket:
@@ -614,6 +653,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
         Raises:
             IndexError: if an index is out of the frame
             TypeError: if `key` is not an index, a slice or a list of indices
+
         """
 
     def __str__(self) -> str:
@@ -625,6 +665,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (str): str representing the socket's data
+
         """
 
     def __sub__(self, value: SocketLike) -> Socket:
@@ -637,6 +678,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  self - value
+
         """
 
     def __truediv__(self, value: SocketLike) -> Socket:
@@ -649,6 +691,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  self / value
+
         """
 
     def __xor__(self, value: SocketLike) -> Socket:
@@ -661,6 +704,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  self ^ value
+
         """
 
     @typing.overload
@@ -685,6 +729,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
 
         Returns:
             out (Socket):  output_dtype(self)
+
         """
 
     def bind(self, s_out: SocketLike, priority: int = -1, raw_data: bool = False) -> None:
@@ -698,6 +743,7 @@ class Socket(streampu._ext.interfaces.Interface_reset):
             s_out (SocketLike): Socket to bind
             priority (int): Priority of the bind.
             raw_data (bool): if True converts data to a Socket
+
         """
 
     def get_bound_socket(self) -> Socket:
@@ -841,6 +887,7 @@ class Task:
 
         Returns:
             out (Socket): the task socket named 'sck_name'
+
         """
 
     def __getitem__(self, arg0: typing.Any) -> typing.Any: ...
@@ -852,6 +899,7 @@ class Task:
             self (Task): A Task
             attr (str): attribute name
             value (Any): Value to set
+
         """
 
     def abort_processing(self) -> None:
@@ -1391,6 +1439,7 @@ class _Sequence(
 
         Raises:
             RuntimeError: if `module_ref` is not part of the sequence
+
         """
 
     def get_modules(self, module_class, set_modules=True):
@@ -1403,6 +1452,7 @@ class _Sequence(
 
         Returns:
             out (list): the modules of the sequence that are instances of `module_class`
+
         """
 
     def get_modules_per_threads(self) -> list[list[Module]]:

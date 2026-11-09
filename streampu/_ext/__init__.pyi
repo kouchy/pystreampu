@@ -232,6 +232,7 @@ class dtype:
 
         Raises:
             TypeError: If the input is not a valid dtype.
+
         """
 
     def __call__(self: numpy.dtype[typing.Any], data: Socket | np.array) -> Socket:
@@ -244,6 +245,7 @@ class dtype:
 
         Returns:
             out (Socket): a socket representing data with the `dtype` of `self`
+
         """
 
     def __repr__(self: numpy.dtype[typing.Any]) -> str: ...
