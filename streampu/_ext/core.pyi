@@ -788,6 +788,12 @@ class Socket(streampu._ext.interfaces.Interface_reset):
         """
 
     @property
+    def memoryview(self) -> memoryview:
+        """
+        1D memoryview (without copy) of the elements of the current wave.
+        """
+
+    @property
     def n_elmts(self) -> int:
         """
         Total number of elements, for all the frames.
@@ -1201,6 +1207,31 @@ class _Pipeline(streampu._ext.interfaces.Interface_get_set_n_frames):
         Return True if the adaptors are bound.
         """
 
+    def measure_bench(
+        self,
+        n_exec: typing.SupportsInt | typing.SupportsIndex,
+        n_warmup: typing.SupportsInt | typing.SupportsIndex = 256,
+        n_skip_frames: typing.SupportsInt | typing.SupportsIndex = 0,
+    ) -> dict:
+        """
+        Warm up and measure pipeline stage and end-to-end HDR real-time statistics.
+        """
+
+    def reset_rt_stats(self) -> None:
+        """
+        Reset HDR real-time statistics across all stages of the pipeline.
+        """
+
+    def set_rt_stats(self, enable: bool, n_skip_frames: typing.SupportsInt | typing.SupportsIndex = 0) -> None:
+        """
+        Enable or disable HDR real-time cycle-counter collection across all pipeline stages.
+        """
+
+    def show_rt_stats(self, display_thr: bool = True, display_in_frames: bool = False, stream: ... = ...) -> None:
+        """
+        Print the real-time HDR statistics of the pipeline.
+        """
+
     def show_stats(self, stream: ... = ...) -> None:
         """
         Print the statistics of the tasks, one table per stage (enable them first with
@@ -1253,6 +1284,18 @@ class _Sequence(
     Use `streampu.Sequence`, which can also be built from sockets.
 
     """
+
+    @staticmethod
+    def bench_bare_cpp_call(
+        n_exec: typing.SupportsInt | typing.SupportsIndex,
+        n_tasks: typing.SupportsInt | typing.SupportsIndex = 8,
+        collect_rt_percentiles: bool = False,
+        n_warmup: typing.SupportsInt | typing.SupportsIndex = 256,
+        rt_skip: typing.SupportsInt | typing.SupportsIndex = 0,
+    ) -> dict:
+        """
+        Run `n_exec * n_tasks` bare C++ noinline `empty_kernel_0` calls and return latency/RT statistics.
+        """
 
     @typing.overload
     def __init__(
@@ -1360,12 +1403,17 @@ class _Sequence(
         """
 
     @typing.overload
-    def exec_n_times(self, n_exec: typing.SupportsInt | typing.SupportsIndex) -> None:
+    def exec_n_times(
+        self, n_exec: typing.SupportsInt | typing.SupportsIndex, with_statuses: bool = False, per_thread: bool = False
+    ) -> None:
         """
         Execute the sequence `n_exec` times in total, shared between the threads.
 
         Args:
             n_exec (int): number of executions
+            with_statuses (bool): if True, use the status-collecting execution loop (`_exec`)
+            per_thread (bool): if True and `n_threads > 1`, each thread executes `n_exec / n_threads`
+                iterations using a thread-local counter without shared atomic contention
         """
 
     @typing.overload
@@ -1473,6 +1521,35 @@ class _Sequence(
     def get_tasks_per_types(self) -> list[list[Task]]:
         """
         Return the tasks grouped by type: a list (one per original task) of the tasks of all the threads.
+        """
+
+    def measure_bench(
+        self,
+        n_exec: typing.SupportsInt | typing.SupportsIndex,
+        collect_rt_percentiles: bool = False,
+        n_warmup: typing.SupportsInt | typing.SupportsIndex = 256,
+        rt_skip: typing.SupportsInt | typing.SupportsIndex = 0,
+        with_statuses: bool = False,
+        task_divisor_override: typing.SupportsInt | typing.SupportsIndex = 0,
+        per_thread: bool = False,
+    ) -> dict:
+        """
+        Warm up and measure sequence latency and HDR real-time percentiles.
+        """
+
+    def reset_rt_stats(self) -> None:
+        """
+        Reset HDR real-time statistics across all threads of the sequence.
+        """
+
+    def set_rt_stats(self, enable: bool, n_skip_frames: typing.SupportsInt | typing.SupportsIndex = 0) -> None:
+        """
+        Enable or disable HDR real-time cycle-counter collection per stream.
+        """
+
+    def show_rt_stats(self, display_thr: bool = True, display_in_frames: bool = False, stream: ... = ...) -> None:
+        """
+        Print the real-time HDR statistics of the sequence.
         """
 
     def show_stats(self, ordered: bool = False, display_thr: bool = True, stream: ... = ...) -> None:

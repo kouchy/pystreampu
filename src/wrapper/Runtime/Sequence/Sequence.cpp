@@ -1,6 +1,7 @@
 #include "wrapper/Runtime/Sequence/Sequence.hpp"
 #include "wrapper/Julia/gc_region.hpp"
 #include "wrapper/Common/pybind11_common.h"
+#include "wrapper/Common/Tools/python_codelet.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -146,17 +147,314 @@ py::return_value_policy::take_ownership);
     )pbdoc");
 
     sequence_class.def("exec_n_times",
-                       [](spu::runtime::Sequence& self, size_t n_exec)
+                       [](spu::runtime::Sequence& self, size_t n_exec, const bool with_statuses, const bool per_thread)
                        {
                            py::gil_scoped_release release{};
-                           std::atomic<size_t> counter(0);
-                           self.exec([&counter, n_exec]() { return ++counter >= n_exec; });
-                       }, "n_exec"_a, R"pbdoc(
+                           const size_t n_threads = self.get_n_threads();
+                           if (n_threads == 1)
+                           {
+                               size_t counter = 0;
+                               if (!with_statuses)
+                                   self.exec([&counter, n_exec]() { return ++counter >= n_exec; });
+                               else
+                                   self.exec([&counter, n_exec](const std::vector<const int*>&)
+                                             { return ++counter >= n_exec; });
+                           }
+                           else if (per_thread)
+                           {
+                               const size_t n_per_thread = std::max<size_t>(1, n_exec / n_threads);
+                               if (!with_statuses)
+                                   self.exec(
+                                     [n_per_thread]()
+                                     {
+                                         thread_local size_t tl_c = 0;
+                                         if (++tl_c >= n_per_thread)
+                                         {
+                                             tl_c = 0;
+                                             return true;
+                                         }
+                                         return false;
+                                     });
+                               else
+                                   self.exec(
+                                     [n_per_thread](const std::vector<const int*>&)
+                                     {
+                                         thread_local size_t tl_c = 0;
+                                         if (++tl_c >= n_per_thread)
+                                         {
+                                             tl_c = 0;
+                                             return true;
+                                         }
+                                         return false;
+                                     });
+                           }
+                           else
+                           {
+                               std::atomic<size_t> counter(0);
+                               if (!with_statuses)
+                                   self.exec([&counter, n_exec]() { return ++counter >= n_exec; });
+                               else
+                                   self.exec([&counter, n_exec](const std::vector<const int*>&)
+                                             { return ++counter >= n_exec; });
+                           }
+                       },
+                       "n_exec"_a,
+                       "with_statuses"_a = false,
+                       "per_thread"_a = false,
+                       R"pbdoc(
         Execute the sequence `n_exec` times in total, shared between the threads.
 
         Args:
             n_exec (int): number of executions
+            with_statuses (bool): if True, use the status-collecting execution loop (`_exec`)
+            per_thread (bool): if True and `n_threads > 1`, each thread executes `n_exec / n_threads`
+                iterations using a thread-local counter without shared atomic contention
     )pbdoc");
+
+    sequence_class.def_static(
+      "bench_bare_cpp_call",
+      [](const size_t n_exec,
+         const size_t n_tasks,
+         const bool collect_rt_percentiles,
+         const size_t n_warmup,
+         const size_t rt_skip) -> py::dict
+      {
+          double dt_ns = 0.0;
+          double dt_ticks = 0.0;
+          double std_ns = 0.0;
+          double p50_ns = 0.0;
+          double p99_ns = 0.0;
+          double p999_ns = 0.0;
+          double p9999_ns = 0.0;
+          double max_ns = 0.0;
+          {
+              py::gil_scoped_release release{};
+              for (size_t i = 0; i < n_warmup; ++i)
+                  for (size_t t = 0; t < n_tasks; ++t)
+                      pyspu::wrapper::empty_kernel_0(t);
+              const auto t0_clk = std::chrono::steady_clock::now();
+              const uint64_t t0_tsc = spu::tools::read_tsc();
+              for (size_t i = 0; i < n_exec; ++i)
+                  for (size_t t = 0; t < n_tasks; ++t)
+                      pyspu::wrapper::empty_kernel_0(t);
+              const uint64_t t1_tsc = spu::tools::read_tsc();
+              const auto t1_clk = std::chrono::steady_clock::now();
+              dt_ns = static_cast<double>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(t1_clk - t0_clk).count());
+              dt_ticks = static_cast<double>(t1_tsc - t0_tsc);
+              const double ns_per_tick = (dt_ticks > 0.0) ? (dt_ns / dt_ticks) : 1.0;
+
+              if (collect_rt_percentiles)
+              {
+                  spu::tools::Rt_stats raw_stats;
+                  for (size_t i = 0; i < n_exec; ++i)
+                  {
+                      const uint64_t s0 = spu::tools::read_tsc();
+                      for (size_t t = 0; t < n_tasks; ++t)
+                          pyspu::wrapper::empty_kernel_0(t);
+                      const uint64_t s1 = spu::tools::read_tsc();
+                      if (i >= rt_skip) raw_stats.add_sample(s1 - s0);
+                  }
+                  std_ns = raw_stats.get_std_ticks() * ns_per_tick;
+                  p50_ns = raw_stats.get_percentile_ticks(50.0) * ns_per_tick;
+                  p99_ns = raw_stats.get_percentile_ticks(99.0) * ns_per_tick;
+                  p999_ns = raw_stats.get_percentile_ticks(99.9) * ns_per_tick;
+                  p9999_ns = raw_stats.get_percentile_ticks(99.99) * ns_per_tick;
+                  max_ns = static_cast<double>(raw_stats.max_ticks) * ns_per_tick;
+              }
+          }
+          const double ns_per_frame = dt_ns / static_cast<double>(n_exec);
+          const double ns_per_task = ns_per_frame / static_cast<double>(n_tasks);
+          const double ticks_per_frame = dt_ticks / static_cast<double>(n_exec);
+          const double ticks_per_task = ticks_per_frame / static_cast<double>(n_tasks);
+
+          py::dict d;
+          d["n_tasks"] = n_tasks;
+          d["ns_per_frame"] = ns_per_frame;
+          d["ns_per_task"] = ns_per_task;
+          d["ticks_per_frame"] = ticks_per_frame;
+          d["ticks_per_task"] = ticks_per_task;
+          d["std_ns_per_frame"] = std_ns;
+          d["p50_ns_per_frame"] = p50_ns;
+          d["p99_ns_per_frame"] = p99_ns;
+          d["p999_ns_per_frame"] = p999_ns;
+          d["p9999_ns_per_frame"] = p9999_ns;
+          d["max_ns_per_frame"] = max_ns;
+          return d;
+      },
+      "n_exec"_a,
+      "n_tasks"_a = 8,
+      "collect_rt_percentiles"_a = false,
+      "n_warmup"_a = 256,
+      "rt_skip"_a = 0,
+      "Run `n_exec * n_tasks` bare C++ noinline `empty_kernel_0` calls and return latency/RT statistics.");
+
+    sequence_class.def(
+      "measure_bench",
+      [](spu::runtime::Sequence& self,
+         const size_t n_exec,
+         const bool collect_rt_percentiles,
+         const size_t n_warmup,
+         const size_t rt_skip,
+         const bool with_statuses,
+         const size_t task_divisor_override,
+         const bool per_thread) -> py::dict
+      {
+          const size_t n_tasks = task_divisor_override ? task_divisor_override : self.get_tasks_per_types().size();
+          const size_t n_threads = std::max<size_t>(1, self.get_n_threads());
+
+          double ns_per_frame = -1.0;
+          double ns_per_task = -1.0;
+          double ticks_per_frame = 0.0;
+          double ticks_per_task = 0.0;
+          double std_ns_per_frame = 0.0;
+          double p50_ns_per_frame = 0.0;
+          double p99_ns_per_frame = 0.0;
+          double p999_ns_per_frame = 0.0;
+          double p9999_ns_per_frame = 0.0;
+          double max_ns_per_frame = 0.0;
+
+          {
+              py::gil_scoped_release release{};
+              self.set_rt_stats(false);
+
+              if (per_thread && n_threads > 1)
+              {
+                  if (n_warmup > 0)
+                  {
+                      std::atomic<size_t> w_cnt(0);
+                      if (!with_statuses)
+                          self.exec([&w_cnt, n_warmup]() { return ++w_cnt >= n_warmup; });
+                      else
+                          self.exec([&w_cnt, n_warmup](const std::vector<const int*>&) { return ++w_cnt >= n_warmup; });
+                  }
+
+                  std::atomic<size_t> cnt(0);
+                  const auto t0_clk = std::chrono::steady_clock::now();
+                  const uint64_t t0_tsc = spu::tools::read_tsc();
+                  if (!with_statuses)
+                      self.exec([&cnt, n_exec]() { return ++cnt >= n_exec; });
+                  else
+                      self.exec([&cnt, n_exec](const std::vector<const int*>&) { return ++cnt >= n_exec; });
+                  const uint64_t t1_tsc = spu::tools::read_tsc();
+                  const auto t1_clk = std::chrono::steady_clock::now();
+
+                  const double dt_ns = static_cast<double>(
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(t1_clk - t0_clk).count());
+                  const double dt_ticks = static_cast<double>(t1_tsc - t0_tsc);
+                  ns_per_frame = dt_ns / static_cast<double>(n_exec);
+                  ns_per_task = ns_per_frame / static_cast<double>(n_tasks);
+                  ticks_per_frame = dt_ticks / static_cast<double>(n_exec);
+                  ticks_per_task = ticks_per_frame / static_cast<double>(n_tasks);
+
+                  if (collect_rt_percentiles)
+                  {
+                      self.reset_rt_stats();
+                      self.set_rt_stats(true, rt_skip);
+                      std::atomic<size_t> c2(0);
+                      if (!with_statuses)
+                          self.exec([&c2, n_exec]() { return ++c2 >= n_exec; });
+                      else
+                          self.exec([&c2, n_exec](const std::vector<const int*>&) { return ++c2 >= n_exec; });
+
+                      spu::tools::Rt_stats st;
+                      for (const auto& s : self.get_rt_stats_per_thread())
+                          st.merge(s);
+                      const double ns_per_tick = self.get_rt_ns_per_tick() / static_cast<double>(n_threads);
+                      self.set_rt_stats(false);
+
+                      std_ns_per_frame = st.get_std_ticks() * ns_per_tick;
+                      p50_ns_per_frame = st.get_percentile_ticks(50.0) * ns_per_tick;
+                      p99_ns_per_frame = st.get_percentile_ticks(99.0) * ns_per_tick;
+                      p999_ns_per_frame = st.get_percentile_ticks(99.9) * ns_per_tick;
+                      p9999_ns_per_frame = st.get_percentile_ticks(99.99) * ns_per_tick;
+                      max_ns_per_frame = static_cast<double>(st.max_ticks) * ns_per_tick;
+                  }
+              }
+              else
+              {
+                  if (n_warmup > 0)
+                  {
+                      size_t w = 0;
+                      if (!with_statuses)
+                          self.exec([&w, n_warmup]() { return ++w >= n_warmup; });
+                      else
+                          self.exec([&w, n_warmup](const std::vector<const int*>&) { return ++w >= n_warmup; });
+                  }
+
+                  size_t c1 = 0;
+                  const auto t0_clk = std::chrono::steady_clock::now();
+                  const uint64_t t0_tsc = spu::tools::read_tsc();
+                  if (!with_statuses)
+                      self.exec([&c1, n_exec]() { return ++c1 >= n_exec; });
+                  else
+                      self.exec([&c1, n_exec](const std::vector<const int*>&) { return ++c1 >= n_exec; });
+                  const uint64_t t1_tsc = spu::tools::read_tsc();
+                  const auto t1_clk = std::chrono::steady_clock::now();
+
+                  const double dt_ns = static_cast<double>(
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(t1_clk - t0_clk).count());
+                  const double dt_ticks = static_cast<double>(t1_tsc - t0_tsc);
+                  ns_per_frame = dt_ns / static_cast<double>(n_exec);
+                  ns_per_task = ns_per_frame / static_cast<double>(n_tasks);
+                  ticks_per_frame = dt_ticks / static_cast<double>(n_exec);
+                  ticks_per_task = ticks_per_frame / static_cast<double>(n_tasks);
+
+                  if (collect_rt_percentiles)
+                  {
+                      self.reset_rt_stats();
+                      self.set_rt_stats(true, rt_skip);
+                      size_t c2 = 0;
+                      if (!with_statuses)
+                          self.exec([&c2, n_exec]() { return ++c2 >= n_exec; });
+                      else
+                          self.exec([&c2, n_exec](const std::vector<const int*>&) { return ++c2 >= n_exec; });
+
+                      const auto& st = self.get_rt_stats_per_thread()[0];
+                      const double ns_per_tick = self.get_rt_ns_per_tick();
+                      self.set_rt_stats(false);
+
+                      std_ns_per_frame = st.get_std_ticks() * ns_per_tick;
+                      p50_ns_per_frame = st.get_percentile_ticks(50.0) * ns_per_tick;
+                      p99_ns_per_frame = st.get_percentile_ticks(99.0) * ns_per_tick;
+                      p999_ns_per_frame = st.get_percentile_ticks(99.9) * ns_per_tick;
+                      p9999_ns_per_frame = st.get_percentile_ticks(99.99) * ns_per_tick;
+                      max_ns_per_frame = static_cast<double>(st.max_ticks) * ns_per_tick;
+                  }
+              }
+          }
+
+          py::dict d;
+          d["n_tasks"] = n_tasks;
+          d["ns_per_frame"] = ns_per_frame;
+          d["ns_per_task"] = ns_per_task;
+          d["ticks_per_frame"] = ticks_per_frame;
+          d["ticks_per_task"] = ticks_per_task;
+          d["std_ns_per_frame"] = std_ns_per_frame;
+          d["p50_ns_per_frame"] = p50_ns_per_frame;
+          d["p99_ns_per_frame"] = p99_ns_per_frame;
+          d["p999_ns_per_frame"] = p999_ns_per_frame;
+          d["p9999_ns_per_frame"] = p9999_ns_per_frame;
+          d["max_ns_per_frame"] = max_ns_per_frame;
+          return d;
+      },
+      "n_exec"_a,
+      "collect_rt_percentiles"_a = false,
+      "n_warmup"_a = 256,
+      "rt_skip"_a = 0,
+      "with_statuses"_a = false,
+      "task_divisor_override"_a = 0,
+      "per_thread"_a = false,
+      "Warm up and measure sequence latency and HDR real-time percentiles.");
+
+    sequence_class.def("set_rt_stats",
+                       &spu::runtime::Sequence::set_rt_stats,
+                       "enable"_a,
+                       "n_skip_frames"_a = 0,
+                       "Enable or disable HDR real-time cycle-counter collection per stream.");
+    sequence_class.def("reset_rt_stats",
+                       &spu::runtime::Sequence::reset_rt_stats,
+                       "Reset HDR real-time statistics across all threads of the sequence.");
     auto sys = py::module::import("sys");
     sequence_class.def("exec",
                        [](spu::runtime::Sequence& self, spu::tools::Terminal_dump& terminal, std::ostream& stream, bool force_report)
@@ -266,6 +564,17 @@ py::return_value_policy::take_ownership);
             display_thr (bool): display the throughput columns
             stream (file): stream where the statistics are written
     )pbdoc");
+
+    sequence_class.def(
+      "show_rt_stats",
+      [](spu::runtime::Sequence& self, const bool display_thr, const bool display_in_frames, std::ostream& stream)
+      {
+          spu::tools::Stats::show_rt(self, display_thr, display_in_frames, stream);
+      },
+      "display_thr"_a = true,
+      "display_in_frames"_a = false,
+      "stream"_a = sys.attr("stdout"),
+      "Print the real-time HDR statistics of the sequence.");
 
     sequence_class.def(
       "get_modules_per_threads", &spu::runtime::Sequence::get_modules_per_threads, py::return_value_policy::reference, "Return the modules of each thread: a list (one per thread) of lists of modules.");

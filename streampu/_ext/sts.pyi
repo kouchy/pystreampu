@@ -20,7 +20,7 @@ class Stateless(streampu._ext.core.Module):
         Build an empty module: add tasks with `create_task`.
         """
 
-    def create_codelet(self, task: streampu._ext.core.Task, codelet: typing.Any) -> None:
+    def create_codelet(self, task: streampu._ext.core.Task, codelet: typing.Any = None) -> None:
         """
         Set the function executed by a task (its codelet).
 
@@ -28,12 +28,12 @@ class Stateless(streampu._ext.core.Module):
         success. Inside it, the data of the sockets are reached with `task.<name>.numpy`;
         outputs must be written in place (`out[:] = ...`).
         Alternatively, `codelet` may be a Numba `@njit` function taking the task's data
-        sockets as 2D NumPy views (`wave`), or a `streampu.numba_codelet(...)` descriptor,
-        which is compiled into a GIL-free `@cfunc` trampoline called directly from C++.
+        sockets as 2D NumPy views (`wave`), a `streampu.numba_codelet(...)` descriptor,
+        or `None` to bind a native C++ empty codelet.
 
         Args:
             task (Task): a task created with `create_task`
-            codelet (Callable): the function to execute
+            codelet (Callable | None): the function to execute
         """
 
     def create_codelet_cfunc(
@@ -43,6 +43,13 @@ class Stateless(streampu._ext.core.Module):
         keep_alive: typing.Any = None,
         extra_args_packer: typing.Any = None,
     ) -> None: ...
+    def create_codelet_empty(
+        self, task: streampu._ext.core.Task, capture_mode: typing.SupportsInt | typing.SupportsIndex = 0
+    ) -> None:
+        """
+        Register a native C++ empty codelet on `task` (for runtime overhead benchmarking).
+        """
+
     def create_socket_fwd(
         self,
         task: streampu._ext.core.Task,
