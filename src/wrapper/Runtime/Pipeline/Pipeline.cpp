@@ -73,7 +73,12 @@ pyspu::wrapper::wrap_pipeline(py::handle scope)
             puids (list[list[int]]): processing units of the threads of each stage
     )pbdoc",
                        py::return_value_policy::take_ownership);
+    // keep_alive<1, 0>: the original modules must outlive the C++ pipeline, whose destructor
+    // deallocates their buffers and unbinds the adaptors. `streampu.Pipeline.__init__` calls this
+    // method: an attribute holding the result is not enough, CPython clears the `__dict__` of the
+    // subclass before the C++ destructor runs, whereas pybind11 releases the patients after it.
     pipeline_class.def("get_original_modules", &spu::runtime::Pipeline::get_original_modules, py::return_value_policy::reference,
+                       py::keep_alive<1, 0>(),
                        "Return the modules created by the user, one list per stage (without the clones and adaptors).");
 
     pipeline_class.def("exec",
