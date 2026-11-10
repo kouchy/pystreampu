@@ -577,6 +577,35 @@ py::return_value_policy::take_ownership);
       "Print the real-time HDR statistics of the sequence.");
 
     sequence_class.def(
+      "get_rt_stats",
+      [](spu::runtime::Sequence& self) -> py::dict
+      {
+          spu::tools::Rt_stats st;
+          for (const auto& s : self.get_rt_stats_per_thread())
+              st.merge(s);
+          const double scale = self.get_rt_ns_per_tick();
+          const size_t n_t = std::max<size_t>(1, self.get_tasks_per_types().size());
+          py::dict d;
+          d["n_calls"] = st.n_calls;
+          d["n_tasks"] = n_t;
+          d["ns_per_tick"] = scale;
+          d["avg_ns"] = st.get_avg_ticks() * scale;
+          d["std_ns"] = st.get_std_ticks() * scale;
+          d["min_ns"] = (st.n_calls > 0) ? (static_cast<double>(st.min_ticks) * scale) : 0.0;
+          d["p10_ns"] = st.get_percentile_ticks(10.0) * scale;
+          d["p25_ns"] = st.get_percentile_ticks(25.0) * scale;
+          d["p50_ns"] = st.get_percentile_ticks(50.0) * scale;
+          d["p75_ns"] = st.get_percentile_ticks(75.0) * scale;
+          d["p90_ns"] = st.get_percentile_ticks(90.0) * scale;
+          d["p99_ns"] = st.get_percentile_ticks(99.0) * scale;
+          d["p999_ns"] = st.get_percentile_ticks(99.9) * scale;
+          d["p9999_ns"] = st.get_percentile_ticks(99.99) * scale;
+          d["max_ns"] = (st.n_calls > 0) ? (static_cast<double>(st.max_ticks) * scale) : 0.0;
+          return d;
+      },
+      "Return the collected HDR real-time statistics of the sequence as a Python dictionary.");
+
+    sequence_class.def(
       "get_modules_per_threads", &spu::runtime::Sequence::get_modules_per_threads, py::return_value_policy::reference, "Return the modules of each thread: a list (one per thread) of lists of modules.");
     sequence_class.def(
       "get_modules_per_types", &spu::runtime::Sequence::get_modules_per_types, py::return_value_policy::reference, "Return the modules grouped by type: a list (one per original module) of the modules of all the threads.");
