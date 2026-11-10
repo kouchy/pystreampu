@@ -37,8 +37,8 @@ static const char* const k_socket_cache_cap_name = "spu_socket_view_cache";
 //   `__dict__` where we store a `PyCapsule` owning a `Socket_view_cache` (automatically freed when
 //   the Python `Socket` wrapper is garbage-collected).
 // - The cache also stores raw C++ pointers to `Socket` and `Module` (`sck` and `mdl`) so the
-//   C `PyGetSetDef` getters (`socket_get_wave` / `socket_get_numpy`) bypass `pybind11::cpp_function`
-//   and `pybind11::cast<const Socket&>()` completely on the fast path.
+//   `tp_getattro` hook (`socket_tp_getattro`) bypasses `pybind11::cpp_function` and
+//   `pybind11::cast<const Socket&>()` completely on the fast path.
 // - On subsequent accesses with the same dimensions `(n_row, n_col)`, we reuse the cached
 //   `py::array` directly. If the underlying C++ socket `dataptr` changed (e.g., when advancing to
 //   a new wave within a multi-wave buffer or after rebinding), we update the `PyArrayObject`'s
@@ -255,41 +255,13 @@ get_cached_socket_memoryview_ptr(PyObject* self_obj)
     }
 }
 
-PyObject*
-socket_get_wave(PyObject* self_obj, void*)
+// New reference returned by a fast getter, or the pending Python error raised as a C++ exception
+inline PyObject*
+check_new_ref(PyObject* obj)
 {
-    return get_cached_socket_array_ptr(self_obj, true);
+    if (obj == nullptr) throw py::error_already_set();
+    return obj;
 }
-
-PyObject*
-socket_get_numpy(PyObject* self_obj, void*)
-{
-    return get_cached_socket_array_ptr(self_obj, false);
-}
-
-PyObject*
-socket_get_memoryview(PyObject* self_obj, void*)
-{
-    return get_cached_socket_memoryview_ptr(self_obj);
-}
-
-PyGetSetDef socket_fast_getset[] = {
-    { "wave",
-      &socket_get_wave,
-      nullptr,
-      "NumPy view (without copy) of the frames of the current wave (`n_frames_per_wave` rows).",
-      nullptr },
-    { "numpy",
-      &socket_get_numpy,
-      nullptr,
-      "NumPy view of the data of the socket (no copy), with one row per frame.",
-      nullptr },
-    { "memoryview",
-      &socket_get_memoryview,
-      nullptr,
-      "1D memoryview (without copy) of the elements of the current wave.",
-      nullptr }
-};
 
 getattrofunc orig_socket_getattro = nullptr;
 PyObject* k_wave_attr = nullptr;
@@ -350,23 +322,30 @@ pyspu::wrapper::wrap_socket(py::handle scope)
                                  { (size_t)s.get_datatype_size() * n_col, (size_t)s.get_datatype_size() },
                                  s.get_type() == socket_t::SIN);
       });
-    // Install `wave`, `numpy`, and `memoryview` as direct C `PyGetSetDef` descriptors
-    // and hook `tp_getattro` so interned attribute reads (`sck.wave`, `sck.numpy`,
-    // `sck.memoryview`) resolve by pointer identity without `_PyType_Lookup`.
+    // `wave`, `numpy` and `memoryview` are pybind11 properties (seen by pybind11-stubgen and
+    // `help()`), but they are only reached by introspection: `tp_getattro` is hooked so that
+    // reading them on an instance (`sck.wave`, `sck.numpy`, `sck.memoryview`) resolves the
+    // interned name by pointer identity, without `_PyType_Lookup` and descriptor dispatch.
+    py_socket.def_property_readonly(
+      "wave",
+      [](py::handle self) -> py::array
+      { return py::reinterpret_steal<py::array>(check_new_ref(get_cached_socket_array_ptr(self.ptr(), true))); },
+      "NumPy view (without copy) of the frames of the current wave (`n_frames_per_wave` rows).");
+    py_socket.def_property_readonly(
+      "numpy",
+      [](py::handle self) -> py::array
+      { return py::reinterpret_steal<py::array>(check_new_ref(get_cached_socket_array_ptr(self.ptr(), false))); },
+      "NumPy view of the data of the socket (no copy), with one row per frame.");
+    py_socket.def_property_readonly(
+      "memoryview",
+      [](py::handle self) -> py::memoryview
+      { return py::reinterpret_steal<py::memoryview>(check_new_ref(get_cached_socket_memoryview_ptr(self.ptr()))); },
+      "1D memoryview (without copy) of the elements of the current wave.");
     {
         k_wave_attr = PyUnicode_InternFromString("wave");
         k_numpy_attr = PyUnicode_InternFromString("numpy");
         k_memoryview_attr = PyUnicode_InternFromString("memoryview");
         auto* sck_type = reinterpret_cast<PyTypeObject*>(py_socket.ptr());
-        PyObject* wave_descr = PyDescr_NewGetSet(sck_type, &socket_fast_getset[0]);
-        PyObject* numpy_descr = PyDescr_NewGetSet(sck_type, &socket_fast_getset[1]);
-        PyObject* mv_descr = PyDescr_NewGetSet(sck_type, &socket_fast_getset[2]);
-        PyDict_SetItemString(sck_type->tp_dict, "wave", wave_descr);
-        PyDict_SetItemString(sck_type->tp_dict, "numpy", numpy_descr);
-        PyDict_SetItemString(sck_type->tp_dict, "memoryview", mv_descr);
-        Py_DECREF(wave_descr);
-        Py_DECREF(numpy_descr);
-        Py_DECREF(mv_descr);
         if (sck_type->tp_getattro != nullptr)
         {
             orig_socket_getattro = sck_type->tp_getattro;
