@@ -58,6 +58,40 @@ properties. They hold one list of tasks per thread:
 ['increment']
 ```
 
+## Describe the sequence in a `with` block
+
+A sequence can also be described in a `with spu.sequence()` block. The tasks called in
+the block make up the sequence, and StreamPU builds it at the end of the block:
+
+```python
+>>> src = spu.source_random(8, dtype=spu.int64)
+>>> inc = spu.incrementer(8, dtype=spu.int64)
+>>> with spu.sequence() as seq:
+...     out_data, _ = src.generate()
+...     out = inc.increment(out_data)
+>>> seq.exec_seq()
+```
+
+Inside the block:
+
+- the tasks are only bound, not executed: `Task.call_auto_exec` is `False` until the end
+  of the block, and then gets its previous value back;
+- StreamPU finds the first tasks (no input bound) and the last tasks (no consumer in the
+  block) from the bindings. A task also joins the sequence when one of its sockets is
+  bound in the block (`inc.increment["in"].bind(out_data)`), or when it is bound to
+  another task with `Task.bind(...)`;
+- a task without input (a source, a constant…) created before the block joins the
+  sequence when a task of the block uses it. A task with inputs created before the block
+  raises an error;
+- the tasks out of the block that are bound to the tasks of the block (for instance by an
+  earlier description) are left out of the sequence.
+
+`spu.sequence()` takes the options of `spu.Sequence`: `n_threads`, `thread_pinning`,
+`sequence_pinning_policy` and `tasks_inplace`. The object it returns passes every
+attribute and method on to the sequence (`exec_seq()`, `exec_n_times(n)`, `n_frames`,
+`get_cloned_modules(...)`…), and `seq.sequence` returns the `spu.Sequence` itself, for
+instance to give it to a `spu.Set`.
+
 ## Execute the Sequence
 
 A sequence offers several ways of being executed:
