@@ -139,6 +139,12 @@ pyspu::wrapper::wrap_pipeline(py::handle scope)
                        "enable"_a,
                        "n_skip_frames"_a = 0,
                        "Enable or disable HDR real-time cycle-counter collection across all pipeline stages.");
+    pipeline_class.def("set_rt_pacing",
+                       &spu::runtime::Pipeline::set_rt_pacing,
+                       "period_ns"_a,
+                       "Pace the first stage at a fixed period in ns (emulated sampled source, 0 disables). Only "
+                       "effective while RT statistics are enabled; E2E latencies are measured from nominal arrival.");
+    pipeline_class.def("get_rt_pacing", &spu::runtime::Pipeline::get_rt_pacing, "Pacing period of stage 0 (ns).");
     pipeline_class.def("reset_rt_stats",
                        &spu::runtime::Pipeline::reset_rt_stats,
                        "Reset HDR real-time statistics across all stages of the pipeline.");
