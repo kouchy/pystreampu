@@ -97,6 +97,19 @@ class Pipeline(_Pipeline):
         return return_list
 
 
+# `Task.bind` as bound from C++. Inside a `with streampu.pipeline()` block only, it is replaced
+# by `_recording_bind`, which records the dependency to split the stages: outside the block,
+# `Task.bind` (and its stub, generated from the imported package) stays the C++ method.
+_task_bind = Task.bind
+
+
+def _recording_bind(self: Task, *args, **kwargs):
+    out = args[0] if args else kwargs.get("s_out", kwargs.get("t_out"))
+    if out is not None:
+        _context_manager.store_control(self, out if isinstance(out, Task) else out.task)
+    return _task_bind(self, *args, **kwargs)
+
+
 def _task_label(tsk: Task) -> str:
     return f"'{tsk.module.name}::{tsk.name}'"
 
@@ -198,11 +211,13 @@ class PipelineBuilder(_Context):
             raise exceptions.RuntimeError("'streampu.pipeline' blocks cannot be nested.")
         self._saved_auto_exec = Task.call_auto_exec
         Task.call_auto_exec = False
+        Task.bind = _recording_bind
         _context_manager.open_context(self)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         _context_manager.close_context(self)
+        Task.bind = _task_bind
         Task.call_auto_exec = self._saved_auto_exec
         if exc_type is None:
             self._build()

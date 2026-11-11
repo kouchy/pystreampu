@@ -3,6 +3,7 @@
 
 import filecmp
 import os
+import types
 
 import pytest
 
@@ -187,6 +188,45 @@ def test_control_dependency(files):
     assert lasts[0] is rlys[1].relay  # rlys[0].relay is consumed by the binding
     pip.exec()
     assert filecmp.cmp(in_path, out_path)
+
+
+def test_control_dependency_keywords(files):
+    """`Task.bind` keeps the keywords of the C++ method (`t_out`, `s_out`) inside the block."""
+    in_path, out_path = files
+    src, snk, rlys = _chain(*files, n_relays=3)
+
+    with sp.pipeline() as pip:
+        with sp.stage():
+            data, cnt = src.generate()
+        with sp.stage():
+            rlys[0].relay(data)  # output not used
+            rlys[1].relay(data)  # output not used
+            out = rlys[2].relay(data)
+            rlys[2].relay.bind(t_out=rlys[0].relay)
+            rlys[2].relay.bind(s_out=rlys[1].relay["out"], priority=-1)
+        with sp.stage():
+            snk.send_count(out, cnt)
+
+    firsts, lasts, _ = pip._sep_stages[1]
+    assert len(firsts) == 3 and len(lasts) == 1 and lasts[0] is rlys[2].relay
+    pip.exec()
+    assert filecmp.cmp(in_path, out_path)
+
+
+def test_task_bind_is_the_cpp_method_out_of_the_block():
+    """Out of a pipeline block, `Task.bind` is the C++ method (its stub is generated from it)."""
+    cpp_bind = sp.Task.bind
+    assert not isinstance(cpp_bind, types.FunctionType)
+    with sp.pipeline():
+        assert sp.Task.bind is not cpp_bind
+        with sp.stage():
+            sp.source_random(DATA_LENGTH, dtype=sp.uint8).generate()
+    assert sp.Task.bind is cpp_bind
+
+    with pytest.raises(KeyError):
+        with sp.pipeline():
+            raise KeyError("user error")
+    assert sp.Task.bind is cpp_bind
 
 
 def test_socket_binding_inside_stage(files):
