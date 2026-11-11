@@ -12,6 +12,12 @@ class _Context:
         if len(tsk.inputs) == 0 and all([s.has_data() for s in tsk.forwards]):
             self._firsts.append(tsk)
 
+    def store_binding(self, tsk):
+        """Called when an input/forward socket of `tsk` is bound (`Socket.bind`)."""
+
+    def store_control(self, tsk, producer):
+        """Called by `Task.bind`: `tsk` must be executed after the task `producer`."""
+
 
 class _ContextManager:
     def __init__(self):
@@ -43,6 +49,12 @@ class _ContextManager:
 
     def store_module(self, mdl):
         self.current_context.store_module(mdl)
+
+    def store_binding(self, tsk):
+        self.current_context.store_binding(tsk)
+
+    def store_control(self, tsk, producer):
+        self.current_context.store_control(tsk, producer)
 
 
 _context_manager = _ContextManager()

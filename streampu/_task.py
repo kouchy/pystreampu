@@ -109,6 +109,26 @@ def _call_impl(
     return None
 
 
+_task_bind = Task.bind
+
+
+def _bind_impl(self: Task, out: Union[Task, Socket], priority: int = -1) -> None:
+    """Bind the task to a task or a socket, to force an order of execution.
+
+    The task will be executed after `out` (a task, or the task owning the socket `out`).
+    Inside `streampu.stage`, the dependency is recorded to split the pipeline.
+
+    Args:
+        self (Task): the task to execute after `out`
+        out (Task | Socket): the task, or an output/forward socket of the task, to execute
+            before `self`
+        priority (int): priority of the binding, -1 for the default one
+    """
+    _context_manager.store_control(self, out if isinstance(out, Task) else out.task)
+    _task_bind(self, out, priority)
+
+
+Task.bind = _bind_impl
 Task.__call__ = _call_impl
 Task.__getattr__ = _getattr_impl
 Task.__setattr__ = _setattr_impl
