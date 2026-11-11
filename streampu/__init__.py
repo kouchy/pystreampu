@@ -80,7 +80,7 @@ from ._initializer import initializer
 from ._minmax import max, min
 from ._module import Module
 from ._numba import numba_codelet
-from ._pipeline import Pipeline
+from ._pipeline import Pipeline, PipelineBuilder, Stage, pipeline, stage
 from ._probe import (
     AProbe,
     Probe_latency,
