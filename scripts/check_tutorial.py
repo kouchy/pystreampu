@@ -529,6 +529,199 @@ def cpp_module(r: Report):
 
 
 # ---------------------------------------------------------------------------
+# Guides - Branches and loops
+# ---------------------------------------------------------------------------
+@check("guides/control_flow.md - Exclusive paths")
+def control_flow_switch(r: Report):
+    N = 4
+    ini = spu.initializer(N, dtype=spu.int32)
+    ctl = spu.Controller_cyclic(2)
+    sw = spu.Switcher(2, N, spu.int32)
+    incs = [spu.incrementer(N, dtype=spu.int32) for _ in range(3)]
+    fin = spu.finalizer(N, dtype=spu.int32)
+    with spu.sequence() as seq:
+        data = ini.initialize()
+        ctl.control.bind(data)
+        path0, path1 = sw.commute(data, ctl.control())
+        a = incs[0].increment(path0)
+        b = incs[2].increment(incs[1].increment(path1))
+        fin.finalize(sw.select(a, b))
+    ini.data_init[0][:] = 1
+    results = []
+    for _ in range(4):
+        seq.exec_seq()
+        results.append(list(fin.final_data[0]))
+    r.compare("final_data after 4 executions", results, [[2] * 4, [3] * 4, [2] * 4, [3] * 4])
+
+
+@check("guides/control_flow.md - Loops")
+def control_flow_loop(r: Report):
+    N = 4
+    ini = spu.initializer(N, dtype=spu.int32)
+    sw = spu.Switcher(2, N, spu.int32)
+    it = spu.Iterator(3)
+    inc = spu.incrementer(N, dtype=spu.int32)
+    fin = spu.finalizer(N, dtype=spu.int32)
+    with spu.sequence() as loop:
+        x = ini.initialize()
+        it.iterate.bind(sw.select)
+        body, done = sw.commute(sw["select::out_data"], it.iterate())
+        y = inc.increment(body)
+        sw.select(y, x)
+        fin.finalize(done)
+    ini.data_init[0][:] = 0
+    loop.exec_seq()
+    r.compare("final_data", list(fin.final_data[0]), [3, 3, 3, 3])
+
+
+@check("guides/control_flow.md - A sequence as a single task, Range")
+def control_flow_set_range(r: Report):
+    N = 4
+    incs = [spu.incrementer(N, dtype=spu.int32) for _ in range(3)]
+    with spu.sequence() as sub:
+        y = incs[0].increment()
+        for inc in incs[1:]:
+            y = inc.increment(y)
+    three = spu.Set(sub.sequence)
+    ini = spu.initializer(N, dtype=spu.int32)
+    fin = spu.finalizer(N, dtype=spu.int32)
+    with spu.sequence() as main:
+        fin.finalize(three.exec(ini.initialize()))
+    ini.data_init[0][:] = 5
+    main.exec_seq()
+    r.compare("final_data with a Set", list(fin.final_data[0]), [8, 8, 8, 8])
+    r.compare("Range(5, start=1, step=2)", [int(s.numpy[0][0]) for s in spu.Range(5, start=1, step=2)], [1, 3])
+
+
+# ---------------------------------------------------------------------------
+# Guides - Real-time statistics
+# ---------------------------------------------------------------------------
+@check("guides/realtime.md - Latency of a sequence, benchmarking")
+def realtime_sequence(r: Report):
+    ini = spu.initializer(256, dtype=spu.int32)
+    incs = [spu.incrementer(256, ns=2000, dtype=spu.int32) for _ in range(3)]
+    fin = spu.finalizer(256, dtype=spu.int32)
+    with spu.sequence() as seq:
+        x = ini.initialize()
+        for inc in incs:
+            x = inc.increment(x)
+        fin.finalize(x)
+    seq.set_rt_stats(True, n_skip_frames=10)
+    seq.exec_n_times(1000)
+    stats = seq.get_rt_stats()
+    r.compare("stats['n_calls']", stats["n_calls"], 990)
+    r.info("p50_ns, p99_ns (about 6,400 ns):", (round(stats["p50_ns"]), round(stats["p99_ns"])))
+    seq.reset_rt_stats()
+    r.compare("n_calls after reset_rt_stats()", seq.get_rt_stats()["n_calls"], 0)
+    res = seq.measure_bench(1000)
+    r.compare("'ns_per_frame' in measure_bench()", "ns_per_frame" in res, True)
+
+
+@check("guides/realtime.md - Latency of a pipeline, pacing")
+def realtime_pipeline(r: Report):
+    data_length, n_threads = 2048, 4
+    with tempfile.TemporaryDirectory() as tmp:
+        in_path, out_path = os.path.join(tmp, "file.in"), os.path.join(tmp, "file.out")
+        with open(in_path, "wb") as f:
+            f.write(os.urandom(data_length * 100))
+
+        def build():
+            source = spu.source_user_binary(data_length, in_path, auto_reset=False, dtype=spu.uint8)
+            sink = spu.sink_user_binary(data_length, out_path, dtype=spu.uint8)
+            rlys = [spu.relayer(data_length, ns=5000, dtype=spu.uint8) for _ in range(6)]
+            with spu.pipeline(buffer_size=16) as pip:
+                with spu.stage():
+                    data, count = source.generate()
+                with spu.stage(n_threads=n_threads):
+                    for rly in rlys:
+                        data = rly.relay(data)
+                with spu.stage():
+                    sink.send_count(data, count)
+            return pip
+
+        pip = build()
+        pip.set_rt_stats(True, n_skip_frames=10)
+        pip.exec()
+        stats = pip.get_rt_stats()
+        r.compare("stats['n_stages']", stats["n_stages"], 3)
+        r.info("e2e_avg_ns (about 580,000 ns):", round(stats["e2e_avg_ns"]))
+        del pip
+
+        pip = build()
+        pip.set_rt_stats(True)
+        pip.set_rt_pacing(50_000)
+        r.compare("get_rt_pacing()", pip.get_rt_pacing(), 50_000.0)
+        pip.exec()
+        stats = pip.get_rt_stats()
+        r.compare("out_ns_per_stream within 10 % of 50,000", abs(stats["out_ns_per_stream"] - 50_000) < 5_000, True)
+        r.info("e2e_avg_ns with pacing (about 48,000 ns):", round(stats["e2e_avg_ns"]))
+        del pip
+
+
+# ---------------------------------------------------------------------------
+# Guides - Debugging and stopping, sockets bindings, numba
+# ---------------------------------------------------------------------------
+@check("guides/debugging.md - Executing step by step, errors")
+def debugging(r: Report):
+    ini = spu.initializer(4, dtype=spu.int32)
+    incs = [spu.incrementer(4, dtype=spu.int32) for _ in range(2)]
+    fin = spu.finalizer(4, dtype=spu.int32)
+    with spu.sequence() as seq:
+        fin.finalize(incs[1].increment(incs[0].increment(ini.initialize())))
+    for task in seq.get_tasks_per_threads()[0]:
+        task.stats = True
+    n_calls = 1
+    while seq.exec_step(0):
+        n_calls += 1
+    # one call per task, plus the call that returns False
+    r.compare("calls of exec_step for 4 tasks", n_calls, 5)
+    r.compare("executions of each task", [t.n_calls for t in seq.get_tasks_per_threads()[0]], [1, 1, 1, 1])
+    try:
+        spu.incrementer(0)
+        r.compare("spu.incrementer(0) raises", False, True)
+    except spu.exceptions.InvalidArgument as e:
+        r.compare("message", "'n_elmts' has to be greater than 0" in str(e), True)
+    r.compare("InvalidArgument is not a ValueError", issubclass(spu.exceptions.InvalidArgument, ValueError), False)
+
+
+@check("guides/socket_operations.md - Inspecting and changing the bindings")
+def sockets_bindings(r: Report):
+    a = spu.incrementer(4, dtype=spu.int32)
+    b = spu.incrementer(4, dtype=spu.int32)
+    y = a.increment(spu.array([1, 2, 3, 4], dtype=spu.int32))
+    b.increment(y)
+    r.compare("get_bound_socket() is y", b.increment["in"].get_bound_socket() is y, True)
+    r.compare("get_bound_sockets()", [s.task.name for s in y.get_bound_sockets()], ["increment"])
+    r.compare("unbind()", b.increment["in"].unbind(y), 0)
+    r.compare("get_bound_sockets() after unbind", y.get_bound_sockets(), [])
+
+
+@check("guides/python_module.md - Codelets compiled with numba (needs numba)")
+def python_module_numba(r: Report):
+    try:
+        import numba
+    except ImportError:
+        r.info("SKIPPED: numba is not installed")
+        return
+    N = 1024
+
+    @numba.njit(nogil=True, fastmath=True)
+    def scale(x, y):
+        for f in range(x.shape[0]):
+            for i in range(x.shape[1]):
+                y[f, i] = 2 * x[f, i]
+        return 0
+
+    mdl = spu.Stateless()
+    task = mdl.create_task("scale")
+    mdl.create_socket_in(task, "x", N, spu.float32)
+    mdl.create_socket_out(task, "y", N, spu.float32)
+    mdl.create_codelet(task, scale)
+    y = mdl.scale(spu.array(np.arange(N, dtype=np.float32)))
+    r.compare("y[:4]", y.numpy[0][:4], np.array([0.0, 2.0, 4.0, 6.0], dtype=np.float32))
+
+
+# ---------------------------------------------------------------------------
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("-k", dest="pattern", default="", help="only run the checks whose name contains PATTERN")

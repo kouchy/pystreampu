@@ -77,6 +77,10 @@ The statistics are also available from Python, for each task:
     Collecting statistics has a small cost. Disable them when measuring the overall
     performance.
 
+These statistics give averages per task. For the distribution of the latency of the
+whole sequence or pipeline (percentiles, jitter, worst cases), see
+[Real-time statistics](realtime.md).
+
 ## Reporting values with probes
 
 **Probes** are modules that observe the graph during its execution: the value of a

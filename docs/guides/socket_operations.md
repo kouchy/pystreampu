@@ -187,3 +187,35 @@ and the outputs of any task can be used with operators.
 ```
 
 Here `y` is computed from fresh random bits at each execution of `seq`.
+
+## Inspecting and changing the bindings
+
+A socket knows what it is bound to:
+
+| Method | Result |
+|--------|--------|
+| `s_in.get_bound_socket()` | the output socket an input socket is bound to |
+| `s_out.get_bound_sockets()` | the list of input sockets bound to an output socket |
+| `s_in.unbind(s_out)` | remove the binding between `s_in` and `s_out` |
+| `s.has_data()` | `True` for an output socket (its memory is allocated) and for a bound input socket |
+| `task.is_bound()` | `True` when the task was bound to another one with `Task.bind` |
+| `task.can_exec()` | `True` when every socket of the task has data |
+
+```python
+>>> a = spu.incrementer(4, dtype=spu.int32)
+>>> b = spu.incrementer(4, dtype=spu.int32)
+>>> y = a.increment(spu.array([1, 2, 3, 4], dtype=spu.int32))
+>>> z = b.increment(y)
+>>> b.increment["in"].get_bound_socket() is y
+True
+>>> [s.task.name for s in y.get_bound_sockets()]
+['increment']
+>>> b.increment["in"].unbind(y)
+0
+>>> y.get_bound_sockets()
+[]
+```
+
+Besides `numpy`, two views give access to the data without copy: `s.wave`, a NumPy
+array of the frames processed by one execution (`n_frames_per_wave` rows), and
+`s.memoryview`, a flat Python `memoryview` of the same elements.

@@ -80,23 +80,9 @@ variables or in a closure): everything it needs must come from its input sockets
 With a regular Python interpreter, the codelets of the different threads cannot run
 Python code at the same time because of the GIL. Two solutions:
 
-- **compile the heavy part of the codelet with [numba](https://numba.pydata.org/)** and
-  the `nogil=True` option, so that the compiled code runs without holding the GIL:
-
-    ```python
-    import numba
-
-    @numba.njit(nogil=True, cache=True)
-    def _scale(x, y):
-        for f in range(x.shape[0]):
-            for i in range(x.shape[1]):
-                y[f, i] = 2 * x[f, i]
-
-    def scale(module, task, frame_id):
-        _scale(task.x.numpy, task.y.numpy)
-        return 0
-    ```
-
+- **compile the codelet with [numba](https://numba.pydata.org/)**: StreamPU then calls
+  the compiled code directly, without the GIL nor the Python interpreter (see
+  [Codelets compiled with numba](#codelets-compiled-with-numba));
 - **use a free-threaded Python** (3.14t) and run it with `PYTHON_GIL=0`: the codelets
   of all the threads then run in parallel.
 
@@ -137,6 +123,90 @@ Three rules make such a module work on several threads:
 
 The script `examples/custom_python_module/custom_python_module.py` uses this module in
 a multithreaded sequence and measures its duration for different numbers of threads.
+
+## Codelets compiled with numba
+
+A Python codelet enters the Python interpreter at each execution, which costs a few
+microseconds and serializes the threads on the GIL. When [numba](https://numba.pydata.org/)
+is installed (`pip install numba`), a codelet can instead be a function compiled by
+`numba.njit`: StreamPU calls the compiled code directly, without Python and without the
+GIL, with an overhead close to the one of a C++ codelet.
+
+The compiled function receives the **data sockets of the task**, in their order of
+creation, as 2D NumPy arrays (one row per frame), and returns `0`:
+
+```python
+import numba
+import numpy as np
+import streampu as spu
+
+N = 1024
+
+@numba.njit(nogil=True, fastmath=True)
+def scale(x, y):                  # x: input socket, y: output socket
+    for f in range(x.shape[0]):
+        for i in range(x.shape[1]):
+            y[f, i] = 2 * x[f, i]
+    return 0
+
+mdl = spu.Stateless()
+task = mdl.create_task("scale")
+mdl.create_socket_in(task, "x", N, spu.float32)
+mdl.create_socket_out(task, "y", N, spu.float32)
+mdl.create_codelet(task, scale)   # a numba function instead of a Python codelet
+
+y = mdl.scale(spu.array(np.arange(N, dtype=np.float32)))
+print(y.numpy[0][:4])             # [0. 2. 4. 6.]
+```
+
+The first call compiles a small wrapper for the sockets of the task, which takes some time;
+the following executions are direct calls.
+
+### With a state
+
+A compiled function cannot read the attributes of a module. To give it a state (buffers,
+tables, parameters), wrap it in `spu.numba_codelet` with an `extra_args` function. This
+function receives the module (the original one or one of its clones) and returns the extra
+arguments of the compiled function: NumPy arrays (1D or 2D, C-contiguous) and scalars
+(`int`, `float`, `bool`, `numpy.float32`…). It is called **once per clone**, so each thread
+gets its own arrays:
+
+```python
+@numba.njit(nogil=True)
+def accumulate(acc, gain, x, y):  # extra arguments first, then the sockets
+    for f in range(x.shape[0]):
+        for i in range(x.shape[1]):
+            acc[i] += gain * x[f, i]
+            y[f, i] = acc[i]
+    return 0
+
+
+class Accumulator(spu.Stateful_core):
+    """y = running sum of gain * x, with one accumulator per thread."""
+
+    def __init__(self, N, gain):
+        super().__init__()
+        self.N, self.gain = N, gain
+        task = self.create_task("accumulate")
+        self.create_socket_in(task, "x", N, spu.float32)
+        self.create_socket_out(task, "y", N, spu.float32)
+        self.create_codelet(task, spu.numba_codelet(accumulate, extra_args=Accumulator._state))
+
+    @staticmethod
+    def _state(mdl):              # mdl: the module that will execute the task
+        return np.zeros(mdl.N, dtype=np.float32), np.float32(mdl.gain)
+
+    def clone(self):
+        other = type(self).__new__(type(self))
+        spu.Stateful_core.__init__(other)
+        other.N, other.gain = self.N, self.gain
+        return other
+```
+
+The rules of [Modules with a state](#modules-with-a-state) still apply: the parameters
+are attributes of the module, copied by `clone()`, and `extra_args` reads them from its
+argument. With `extra_before_sockets=False`, the extra arguments are passed after the
+sockets.
 
 ## Performance with several threads
 

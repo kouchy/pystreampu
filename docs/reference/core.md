@@ -34,3 +34,9 @@ Print the tasks and sockets of a module (`obj` is a `Module`), the sockets of a 
 ::: streampu._ext.Signal_handler
 
 ::: streampu._ext.FormatFlags
+
+### Exceptions
+
+The exceptions raised by StreamPU, see [Debugging and stopping](../guides/debugging.md#errors).
+
+::: streampu._ext.exceptions

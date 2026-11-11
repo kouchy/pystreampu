@@ -8,6 +8,10 @@
 
 ::: streampu._ext.sfl.Stateful_core
 
+::: streampu._numba.numba_codelet
+    options:
+      members: false
+
 ## Writing modules in Julia
 
 Only when pyStreamPU is compiled with Julia, see the guide
@@ -43,6 +47,28 @@ depends on the data type.
 ::: streampu._finalizer.finalizer
 ::: streampu._relayer.relayer
 ::: streampu._delayer.delayer
+
+## Control flow
+
+See the guide [Branches and loops](../guides/control_flow.md).
+
+::: streampu._ext.swi.Switcher
+
+::: streampu._ext.ctl.Controller
+
+::: streampu._ext.ctl.Controller_static
+
+::: streampu._ext.ctl.Controller_cyclic
+
+::: streampu._ext.ctl.Controller_limit
+
+::: streampu._ext.ite.Iterator
+
+::: streampu._ext.ran.Range
+
+::: streampu._ext.set.Set
+
+::: streampu._ext.slp.Sleeper
 
 ## Probes, reporters and terminals
 
