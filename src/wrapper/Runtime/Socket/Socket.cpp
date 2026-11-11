@@ -356,7 +356,8 @@ pyspu::wrapper::wrap_socket(py::handle scope)
 
     py_socket.def_property_readonly("task", &spu::runtime::Socket::get_task, "Task owning the socket.");
     py_socket.def_property_readonly("n_elmts", &spu::runtime::Socket::get_n_elmts, "Total number of elements, for all the frames.");
-    py_socket.def("get_bound_sockets", &spu::runtime::Socket::get_bound_sockets, "Return the sockets bound to this socket (for output sockets only).");
+    // The sockets are owned by their tasks: Python must not take ownership of the pointers.
+    py_socket.def("get_bound_sockets", &spu::runtime::Socket::get_bound_sockets, "Return the sockets bound to this socket (for output sockets only).", py::return_value_policy::reference);
     py_socket.def_property_readonly(
       "dtype",
       [](const spu::runtime::Socket& self) { return pyspu::dtype::get(self.get_datatype_string()); },

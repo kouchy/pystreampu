@@ -98,6 +98,8 @@ def _bind_(self: Socket, s_out: SocketLike, priority: int = -1, raw_data: bool =
     if not isinstance(s_out, Socket):
         s_out = array(s_out)
 
+    # inside `streampu.stage`, the task of `self` belongs to the stage
+    _context_manager.store_binding(self.task)
     self._bind(s_out, priority)
 
 

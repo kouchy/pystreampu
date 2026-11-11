@@ -10,7 +10,7 @@ package, generated from their docstrings. For explanations and examples, see the
 | [Sockets](sockets.md) | creating sockets, data types |
 | [Operators](operators.md) | arithmetic, comparison, bitwise and unary operators, reductions |
 | [Modules](modules.md) | `Stateless`, `Stateful`, `Stateful_core`, Julia modules, built-in modules, probes, reporters |
-| [Execution](execution.md) | `Sequence` and `Pipeline` |
+| [Execution](execution.md) | `Sequence`, `sequence`, `Pipeline`, `pipeline` and `stage` |
 | [Tools](tools.md) | helpers to build C++ extensions |
 
 !!! note "Classes implemented in C++"

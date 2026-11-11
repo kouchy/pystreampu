@@ -45,6 +45,18 @@ The second argument of `spu.Sequence` is the number of threads:
 seq = spu.Sequence(x.task, n_threads)
 ```
 
+The same sequence can be described in a `with spu.sequence()` block (see
+[Building a Sequence](sequence.md#describe-the-sequence-in-a-with-block)), in place of
+the calls above:
+
+```python
+with spu.sequence(n_threads=n_threads) as seq:
+    y = initializer.initialize()
+    for inc in incs:
+        y = inc.increment(y)
+    finalizer.finalize(y)
+```
+
 When `n_threads > 1`, StreamPU **clones** every module of the graph so that each thread
 works on its own copy. All the built-in modules used here can be cloned, as well as the
 [`Stateless` modules written in Python](../guides/python_module.md).
@@ -96,11 +108,9 @@ thread(s), and consecutive stages exchange frames through synchronization buffer
 is the way to combine non-clonable modules (sources, sinks…) with a multithreaded
 processing.
 
-### Describe the graph
-
-This time the data is read from a file by `source_user_binary`, goes through six
-`relayer` modules (which copy their input to their output after a short sleep), and is
-written to another file by `sink_user_binary`.
+In the example below, `source_user_binary` reads the data from a file, six `relayer`
+modules (which copy their input to their output after a short sleep) process it, and
+`sink_user_binary` writes it to another file.
 
 ```python
 import os
@@ -117,23 +127,108 @@ with open("file.in", "wb") as f:          # some data to process
 source = spu.source_user_binary(data_length, "file.in", auto_reset=False, dtype=spu.uint8)
 sink = spu.sink_user_binary(data_length, "file.out", dtype=spu.uint8)
 rlys = [spu.relayer(data_length, ns=5000, dtype=spu.uint8) for _ in range(6)]
+```
 
+### Describe the pipeline stage by stage
+
+The `with spu.pipeline()` block holds the pipeline. Inside it, each `with spu.stage()`
+block describes one stage, in order. The tasks called in a stage belong to that stage:
+
+```python
+with spu.pipeline(buffer_size=16) as pipeline:
+    with spu.stage():                     # stage 0: the source (1 thread)
+        data, count = source.generate()
+
+    with spu.stage(n_threads=n_threads):  # stage 1: the relayers
+        for rly in rlys:
+            data = rly.relay(data)
+
+    with spu.stage():                     # stage 2: the sink (1 thread)
+        sink.send_count(data, count)
+
+pipeline.exec()
+```
+
+This pipeline has three stages: the source on one thread, the six relayers duplicated on
+`n_threads` threads, and the sink on one thread. `pipeline.exec()` returns when the
+source reaches the end of the file (`auto_reset=False`). The output file is then
+identical to the input file.
+
+Inside the `with spu.pipeline()` block:
+
+- the tasks are only bound, not executed: `Task.call_auto_exec` is `False` until the end
+  of the block, and then gets its previous value back. Otherwise, calling
+  `source.generate()` would already consume the first frame of the file;
+- StreamPU finds the first tasks, the last tasks and the excluded tasks of each stage from
+  the bindings, including the bindings between two stages;
+- a task belongs to a single stage. It joins a stage when it is called there, or when one
+  of its sockets is bound there (`rly.relay["in"].bind(data)`);
+- a task without input (a source, a constant…) can be created before the block. It then
+  joins the stage of its first consumer;
+- a stage can only depend on earlier stages. Binding a task to a task of a later stage
+  raises an error.
+
+At the end of the block, StreamPU builds the `spu.Pipeline`. The object returned by
+`spu.pipeline()` then passes every attribute and method on to it (`exec()`,
+`n_frames`, `export_dot(...)`, `show_stats()`, `get_modules(...)`, `stages`…).
+`pipeline.pipeline` returns the `spu.Pipeline` itself, and `print(pipeline)` shows the
+stages and the buffers between them.
+
+#### Stage and buffer options
+
+A buffer sits at the **input** of each stage except the first. Its options are given to
+the stage that receives the frames. `spu.pipeline()` gives their default values:
+
+| Option | Where | Effect |
+|--------|-------|--------|
+| `buffer_size` | `pipeline()` (default `1`), `stage()` | number of frames the input buffer of the stage can hold |
+| `active_waiting` | `pipeline()` (default `False`), `stage()` | wait for the buffer in a loop (`True`: lower latency, but a core stays busy) or asleep (`False`) |
+| `n_threads` | `stage()` (default `1`) | number of threads of the stage |
+| `thread_pinning` | `stage()` (default `False`) | pin the threads of the stage (needs StreamPU built with hwloc) |
+| `puids` | `stage()` | processing unit of each thread of the stage |
+
+```python
+with spu.pipeline(buffer_size=16) as pipeline:
+    with spu.stage():
+        data, count = source.generate()
+    with spu.stage(n_threads=4):                 # input buffer: 16 frames, asleep
+        data = rlys[0].relay(data)
+    with spu.stage(buffer_size=1, active_waiting=True):
+        sink.send_count(data, count)             # input buffer: 1 frame, in a loop
+```
+
+`buffer_size` and `active_waiting` are not allowed on the first stage, because it has no
+input buffer.
+
+#### Dependencies without data
+
+`Task.bind(...)` makes a task wait for another one without exchanging any data. Inside a
+`with spu.pipeline()` block, StreamPU takes these dependencies into account when it
+splits the stages:
+
+```python
+with spu.stage(n_threads=4):
+    a = rlys[0].relay(data)
+    b = rlys[1].relay(data)
+    rlys[1].relay.bind(rlys[0].relay)   # rlys[1].relay runs after rlys[0].relay
+```
+
+Out of the block, `Task.bind` is the usual method.
+
+### Building the pipeline explicitly
+
+`spu.Pipeline(...)` builds the same pipeline from explicit lists. The first tasks, the
+last tasks and the excluded tasks of each stage then have to be given by hand. The graph
+is described with the automatic execution disabled:
+
+```python
 spu.Task.call_auto_exec = False   # describe the graph without executing it
 data, count = source.generate()
 for rly in rlys:
     data = rly.relay(data)
 sink.send_count(data, count)
 spu.Task.call_auto_exec = True
-```
 
-!!! note
-    Here, the automatic execution of the tasks is disabled while the graph is described.
-    Otherwise, calling `source.generate()` would already consume the first frame of the
-    file.
-
-### Build and run the pipeline
-
-```python
 pipeline = spu.Pipeline(
     [source.generate],    # first tasks of the graph
     [sink.send_count],    # last tasks of the graph
@@ -149,10 +244,8 @@ pipeline = spu.Pipeline(
 pipeline.exec()
 ```
 
-The pipeline has three stages: the source on one thread, the six relayers duplicated on
-`n_threads` threads, and the sink on one thread. `pipeline.exec()` returns when the
-source reaches the end of the file (`auto_reset=False`). The output file is then
-identical to the input file.
+The lists of stages, numbers of threads and pinnings have one element per stage. The
+buffer sizes and the active waitings have one element per pair of consecutive stages.
 
 Like a sequence, a pipeline offers `n_frames`, `export_dot(...)`, `show_stats()` and
 `get_modules(...)`. Its `stages` property gives access to the sequence of each stage.

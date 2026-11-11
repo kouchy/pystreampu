@@ -131,11 +131,14 @@ Two consequences:
 A sequence is built from its first tasks (or from sockets, from which StreamPU finds
 the first tasks) and contains every task reachable through the bindings. On `n`
 threads, the modules are cloned `n` times and each thread runs its own copy of the
-graph on its own frames.
+graph on its own frames. A sequence can also be described in a `with spu.sequence()`
+block: the tasks called in the block make up the sequence.
 
 A pipeline splits the graph into stages, each stage being a sequence with its own
 number of threads, connected to the next one by buffers. It allows modules that cannot
-be cloned (sources, sinks…) to be combined with multithreaded stages.
+be cloned (sources, sinks…) to be combined with multithreaded stages. A pipeline can be
+described stage by stage, with `with spu.pipeline()` and one `with spu.stage()` block per
+stage, or built explicitly with `spu.Pipeline(...)`.
 
 <figure markdown="span">
   ![Sequence duplicated on three threads and three-stage pipeline](assets/concepts_parallel.svg)
