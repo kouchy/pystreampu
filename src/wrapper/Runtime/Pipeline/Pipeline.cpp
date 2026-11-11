@@ -37,6 +37,11 @@ pyspu::wrapper::wrap_pipeline(py::handle scope)
                             const std::vector<bool> thread_pinning,
                             const std::vector<std::vector<size_t>> puids)
                          {
+                             if (std::any_of(thread_pinning.begin(), thread_pinning.end(), [](bool b) { return b; }))
+                             {
+                                 if (!spu::tools::Thread_pinning::is_init())
+                                     spu::tools::Thread_pinning::init();
+                             }
                              return std::unique_ptr<spu::runtime::Pipeline>(
                                new spu::runtime::Pipeline(firsts,
                                                           lasts,
@@ -134,6 +139,12 @@ pyspu::wrapper::wrap_pipeline(py::handle scope)
                        "enable"_a,
                        "n_skip_frames"_a = 0,
                        "Enable or disable HDR real-time cycle-counter collection across all pipeline stages.");
+    pipeline_class.def("set_rt_pacing",
+                       &spu::runtime::Pipeline::set_rt_pacing,
+                       "period_ns"_a,
+                       "Pace the first stage at a fixed period in ns (emulated sampled source, 0 disables). Only "
+                       "effective while RT statistics are enabled; E2E latencies are measured from nominal arrival.");
+    pipeline_class.def("get_rt_pacing", &spu::runtime::Pipeline::get_rt_pacing, "Pacing period of stage 0 (ns).");
     pipeline_class.def("reset_rt_stats",
                        &spu::runtime::Pipeline::reset_rt_stats,
                        "Reset HDR real-time statistics across all stages of the pipeline.");
@@ -147,6 +158,75 @@ pyspu::wrapper::wrap_pipeline(py::handle scope)
       "display_in_frames"_a = false,
       "stream"_a = sys.attr("stdout"),
       "Print the real-time HDR statistics of the pipeline.");
+
+    pipeline_class.def(
+      "get_rt_stats",
+      [](spu::runtime::Pipeline& self) -> py::dict
+      {
+          const auto stages = self.get_stages();
+          const size_t n_stages = stages.size();
+          py::list stages_list;
+          for (const auto* stg : stages)
+          {
+              spu::tools::Rt_stats stg_merged;
+              for (const auto& s : stg->get_rt_stats_per_thread())
+                  stg_merged.merge(s);
+              const double scale = stg->get_rt_ns_per_tick();
+              const size_t n_t = std::max<size_t>(1, stg->get_tasks_per_types().size());
+              py::dict sd;
+              sd["n_calls"] = stg_merged.n_calls;
+              sd["n_tasks"] = n_t;
+              sd["avg_ns"] = stg_merged.get_avg_ticks() * scale;
+              sd["std_ns"] = stg_merged.get_std_ticks() * scale;
+              sd["min_ns"] = (stg_merged.n_calls > 0) ? (static_cast<double>(stg_merged.min_ticks) * scale) : 0.0;
+              sd["p10_ns"] = stg_merged.get_percentile_ticks(10.0) * scale;
+              sd["p25_ns"] = stg_merged.get_percentile_ticks(25.0) * scale;
+              sd["p50_ns"] = stg_merged.get_percentile_ticks(50.0) * scale;
+              sd["p75_ns"] = stg_merged.get_percentile_ticks(75.0) * scale;
+              sd["p90_ns"] = stg_merged.get_percentile_ticks(90.0) * scale;
+              sd["p99_ns"] = stg_merged.get_percentile_ticks(99.0) * scale;
+              sd["p999_ns"] = stg_merged.get_percentile_ticks(99.9) * scale;
+              sd["p9999_ns"] = stg_merged.get_percentile_ticks(99.99) * scale;
+              sd["max_ns"] = (stg_merged.n_calls > 0) ? (static_cast<double>(stg_merged.max_ticks) * scale) : 0.0;
+              stages_list.append(sd);
+          }
+
+          py::dict d;
+          d["n_stages"] = n_stages;
+          d["stages"] = stages_list;
+          if (!stages.empty())
+          {
+              spu::tools::Rt_stats e2e_merged;
+              for (const auto& s : stages.back()->get_pipeline_e2e_rt_stats_per_thread())
+                  e2e_merged.merge(s);
+
+              spu::tools::Rt_stats inter_merged;
+              for (const auto& s : stages.back()->get_pipeline_inter_rt_stats_per_thread())
+                  inter_merged.merge(s);
+
+              const double ns_per_tick = stages.back()->get_rt_ns_per_tick();
+              const double last_threads = static_cast<double>(std::max<size_t>(1, stages.back()->get_n_threads()));
+              d["ns_per_tick"] = ns_per_tick;
+              d["out_ns_per_stream"] = (inter_merged.get_avg_ticks() * ns_per_tick) / last_threads;
+              d["e2e_n_calls"] = e2e_merged.n_calls;
+              d["e2e_avg_ns"] = e2e_merged.get_avg_ticks() * ns_per_tick;
+              d["e2e_std_ns"] = e2e_merged.get_std_ticks() * ns_per_tick;
+              d["e2e_min_ns"] =
+                (e2e_merged.n_calls > 0) ? (static_cast<double>(e2e_merged.min_ticks) * ns_per_tick) : 0.0;
+              d["e2e_p10_ns"] = e2e_merged.get_percentile_ticks(10.0) * ns_per_tick;
+              d["e2e_p25_ns"] = e2e_merged.get_percentile_ticks(25.0) * ns_per_tick;
+              d["e2e_p50_ns"] = e2e_merged.get_percentile_ticks(50.0) * ns_per_tick;
+              d["e2e_p75_ns"] = e2e_merged.get_percentile_ticks(75.0) * ns_per_tick;
+              d["e2e_p90_ns"] = e2e_merged.get_percentile_ticks(90.0) * ns_per_tick;
+              d["e2e_p99_ns"] = e2e_merged.get_percentile_ticks(99.0) * ns_per_tick;
+              d["e2e_p999_ns"] = e2e_merged.get_percentile_ticks(99.9) * ns_per_tick;
+              d["e2e_p9999_ns"] = e2e_merged.get_percentile_ticks(99.99) * ns_per_tick;
+              d["e2e_max_ns"] =
+                (e2e_merged.n_calls > 0) ? (static_cast<double>(e2e_merged.max_ticks) * ns_per_tick) : 0.0;
+          }
+          return d;
+      },
+      "Return the collected per-stage and end-to-end HDR real-time statistics as a Python dictionary.");
 
     pipeline_class.def(
       "measure_bench",

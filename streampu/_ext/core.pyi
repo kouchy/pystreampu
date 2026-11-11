@@ -1192,6 +1192,16 @@ class _Pipeline(streampu._ext.interfaces.Interface_get_set_n_frames):
         Return the modules created by the user, one list per stage (without the clones and adaptors).
         """
 
+    def get_rt_pacing(self) -> float:
+        """
+        Pacing period of stage 0 (ns).
+        """
+
+    def get_rt_stats(self) -> dict:
+        """
+        Return the collected per-stage and end-to-end HDR real-time statistics as a Python dictionary.
+        """
+
     def get_tasks_per_threads(self) -> list[list[Task]]:
         """
         Return the tasks of each thread, for all the stages.
@@ -1220,6 +1230,11 @@ class _Pipeline(streampu._ext.interfaces.Interface_get_set_n_frames):
     def reset_rt_stats(self) -> None:
         """
         Reset HDR real-time statistics across all stages of the pipeline.
+        """
+
+    def set_rt_pacing(self, period_ns: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        """
+        Pace the first stage at a fixed period in ns (emulated sampled source, 0 disables). Only effective while RT statistics are enabled; E2E latencies are measured from nominal arrival.
         """
 
     def set_rt_stats(self, enable: bool, n_skip_frames: typing.SupportsInt | typing.SupportsIndex = 0) -> None:
@@ -1511,6 +1526,11 @@ class _Sequence(
     def get_modules_per_types(self) -> list[list[Module]]:
         """
         Return the modules grouped by type: a list (one per original module) of the modules of all the threads.
+        """
+
+    def get_rt_stats(self) -> dict:
+        """
+        Return the collected HDR real-time statistics of the sequence as a Python dictionary.
         """
 
     def get_tasks_per_threads(self) -> list[list[Task]]:
