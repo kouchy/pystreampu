@@ -36,7 +36,7 @@ print(x + y)  # [[5 7 9]]
 
 -   **[How-to guides](guides/socket_operations.md)**
 
-    Recipes for specific tasks: operators, custom modules, profiling…
+    Recipes for specific tasks: operators, custom modules, branches and loops, profiling, debugging…
 
 -   **[Concepts](concepts.md)**
 

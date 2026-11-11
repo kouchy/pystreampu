@@ -19,7 +19,10 @@ nav:
       - Writing a module in Python: guides/python_module.md
       - Writing a module in C++: guides/cpp_module.md
       - Writing a module in Julia: guides/julia_module.md
+      - Branches and loops: guides/control_flow.md
       - Measuring performance: guides/profiling.md
+      - Real-time statistics: guides/realtime.md
+      - Debugging and stopping: guides/debugging.md
       - Visualizing a graph: guides/visualize.md
   - Concepts: concepts.md
   - API reference:

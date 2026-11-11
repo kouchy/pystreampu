@@ -1,0 +1,39 @@
+% Exclusive paths with a Switcher and a Controller (docs/guides/control_flow.md). Build: scripts/build_figures.sh control_flow_switch
+\documentclass{standalone}
+\usepackage{ifthen}
+\usepackage{tikz}
+\usetikzlibrary{streampu}
+
+\begin{document}
+  \begin{tikzpicture}[background rectangle/.style={thick, draw=gray!60, fill=white, fill opacity=1.0, rounded corners=2px}, show background rectangle]
+    % tasks:                 id    coords        label        sin sout sfwd attributes
+    \task                    {t1}  {0.0, 0.0}    {initialize} {0} {1}  {0}  {};
+    \task                    {t2}  {3.0, 2.2}    {control}    {0} {1}  {0}  {};
+    \commute                 {t3}  {6.0, 0.0}    {commute}    {2} {};
+    \task                    {t4}  {9.6, 1.6}    {increment}  {1} {1}  {0}  {};
+    \task                    {t5}  {9.6,-1.6}    {increment}  {1} {1}  {0}  {};
+    \task                    {t6}  {12.8,-1.6}   {increment}  {1} {1}  {0}  {};
+    \select                  {t7}  {16.0, 0.0}   {select}     {2} {};
+    \task                    {t8}  {19.0, 0.0}   {finalize}   {1} {0}  {0}  {};
+
+    % modules
+    \module {"t2"} {m2} {Controller\_cyclic};
+    \module {"t3"} {m3} {Switcher};
+    \module {"t7"} {m7} {Switcher};
+
+    % bindings
+    \draw [bind, thick] (t1_so1) -- (t3_si1);
+    \draw [bind, thick] (t2_so1) -| ([xshift=-0.5cm]t3_si2.west) -- (t3_si2);
+    \draw [bind, thick, densely dotted] (t1.north) |- node[pos=0.75, above, font=\footnotesize] {Task.bind} (t2.west);
+    \draw [bind, thick] (t3_so1) -- ++(0.5,0) |- (t4_si1);
+    \draw [bind, thick] (t3_so2) -- ++(0.5,0) |- (t5_si1);
+    \draw [bind, thick] (t5_so1) -- (t6_si1);
+    \draw [bind, thick] (t4_so1) -| ([xshift=-0.5cm]t7_si1.west) -- (t7_si1);
+    \draw [bind, thick] (t6_so1) -| ([xshift=-0.8cm]t7_si2.west) -- (t7_si2);
+    \draw [bind, thick] (t7_so1) -- (t8_si1);
+
+    % labels
+    \node[soutlbl, anchor=south] at ([xshift=1.4cm]t4.north west |- t4.north) {path 0};
+    \node[soutlbl, anchor=north] at ([xshift=1.4cm]t5.south west |- t5.south) {path 1};
+  \end{tikzpicture}
+\end{document}
