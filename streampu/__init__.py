@@ -93,6 +93,7 @@ from ._probe import (
 from ._red import RType, all, any, prod, red, sum
 from ._relayer import relayer
 from ._sequence import Sequence
+from ._sequence_builder import SequenceBuilder, sequence
 from ._sink import sink_no, sink_user_binary
 
 # Core

@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from streampu._context_manager import _Context, _context_manager
+from streampu._context_manager import _context_manager
 from streampu._ext import exceptions
 from streampu._ext.core import Task, _Pipeline
-from streampu._sequence import _bound_sockets
+from streampu._graph_builder import _BuilderScope, _GraphBuilder, _index, _task_label
 
 
 class Pipeline(_Pipeline):
@@ -97,31 +97,7 @@ class Pipeline(_Pipeline):
         return return_list
 
 
-# `Task.bind` as bound from C++. Inside a `with streampu.pipeline()` block only, it is replaced
-# by `_recording_bind`, which records the dependency to split the stages: outside the block,
-# `Task.bind` (and its stub, generated from the imported package) stays the C++ method.
-_task_bind = Task.bind
-
-
-def _recording_bind(self: Task, *args, **kwargs):
-    out = args[0] if args else kwargs.get("s_out", kwargs.get("t_out"))
-    if out is not None:
-        _context_manager.store_control(self, out if isinstance(out, Task) else out.task)
-    return _task_bind(self, *args, **kwargs)
-
-
-def _task_label(tsk: Task) -> str:
-    return f"'{tsk.module.name}::{tsk.name}'"
-
-
-def _index(tasks: List[Task], tsk: Task) -> int:
-    for i, t in enumerate(tasks):
-        if t is tsk:
-            return i
-    return -1
-
-
-class Stage(_Context):
+class Stage(_BuilderScope):
     """A stage of a pipeline described with `with streampu.stage(...)` (see `streampu.stage`)."""
 
     def __init__(
@@ -182,45 +158,23 @@ class Stage(_Context):
         return f"Stage(n_threads={self.n_threads}, tasks=[{names}])"
 
 
-class PipelineBuilder(_Context):
+class PipelineBuilder(_GraphBuilder):
     """Describe a `Pipeline` stage by stage (see `streampu.pipeline`).
 
     Once the `with` block is closed, the builder holds the `Pipeline` (`builder.pipeline`) and
     forwards it the attributes and methods (`exec`, `n_frames`, `show_stats`, ...).
     """
 
-    _LOCAL = ("type",)
+    _KIND = "pipeline"
 
     def __init__(self, buffer_size: int = 1, active_waiting: bool = False):
         super().__init__("Pipeline")
         self._buffer_size = buffer_size
         self._active_waiting = active_waiting
         self._stages: List[Stage] = []
-        self._controls: Dict[int, List[Task]] = {}
-        self._saved_auto_exec = True
-        self._pipeline: Optional[Pipeline] = None
         self._sep_stages: list = []
         self._pipeline_firsts: List[Task] = []
         self._pipeline_lasts: List[Task] = []
-
-    # ------------------------------------------------------------------ context protocol
-    def __enter__(self) -> "PipelineBuilder":
-        if self._pipeline is not None or self._stages:
-            raise exceptions.RuntimeError("A 'streampu.pipeline' can be described only once.")
-        if isinstance(_context_manager.current_context, (PipelineBuilder, Stage)):
-            raise exceptions.RuntimeError("'streampu.pipeline' blocks cannot be nested.")
-        self._saved_auto_exec = Task.call_auto_exec
-        Task.call_auto_exec = False
-        Task.bind = _recording_bind
-        _context_manager.open_context(self)
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        _context_manager.close_context(self)
-        Task.bind = _task_bind
-        Task.call_auto_exec = self._saved_auto_exec
-        if exc_type is None:
-            self._build()
 
     # ------------------------------------------------------------------ recording
     def store_task(self, tsk: Task) -> None:
@@ -241,7 +195,7 @@ class PipelineBuilder(_Context):
         self._store_control(tsk, producer)
 
     def _add_stage(self, stg: Stage) -> None:
-        if self._pipeline is not None:
+        if self._built is not None:
             raise exceptions.RuntimeError("The pipeline is already built: no stage can be added.")
         if not self._stages and (stg.buffer_size is not None or stg.active_waiting is not None):
             raise exceptions.InvalidArgument(
@@ -250,9 +204,6 @@ class PipelineBuilder(_Context):
             )
         self._stages.append(stg)
 
-    def _store_control(self, tsk: Task, producer: Task) -> None:
-        self._controls.setdefault(id(tsk), []).append(producer)
-
     def _stage_index_of(self, tsk: Task) -> int:
         for k, stg in enumerate(self._stages):
             if _index(stg.tasks, tsk) >= 0:
@@ -260,14 +211,6 @@ class PipelineBuilder(_Context):
         return -1
 
     # ------------------------------------------------------------------ graph analysis
-    def _producers(self, tsk: Task) -> List[Task]:
-        """Tasks that `tsk` depends on: the data bindings and the `Task.bind` dependencies."""
-        out = []
-        for t in [s.task for s in _bound_sockets(tsk)] + self._controls.get(id(tsk), []):
-            if _index(out, t) < 0:
-                out.append(t)
-        return out
-
     def _build(self) -> None:
         if not self._stages:
             raise exceptions.RuntimeError("A 'streampu.pipeline' needs at least one 'streampu.stage'.")
@@ -275,27 +218,13 @@ class PipelineBuilder(_Context):
             if not stg.tasks:
                 raise exceptions.RuntimeError(f"The stage {k} does not contain any task.")
 
-        stage_of: Dict[int, int] = {}
-        for k, stg in enumerate(self._stages):
-            for t in stg.tasks:
-                stage_of[id(t)] = k
-
         # tasks without input declared outside of the stages (e.g. a constant created before the
         # pipeline): put them at the beginning of the stage of their first consumer
-        attached: List[List[Task]] = [[] for _ in self._stages]
-        for k, stg in enumerate(self._stages):
-            for t in stg.tasks:
-                for p in self._producers(t):
-                    if id(p) in stage_of:
-                        continue
-                    if self._producers(p):
-                        raise exceptions.RuntimeError(
-                            f"Task {_task_label(t)} (stage {k}) depends on the task {_task_label(p)} "
-                            "which is not declared in any stage."
-                        )
-                    attached[k].append(p)
-                    stage_of[id(p)] = k
-        stages_tasks = [attached[k] + stg.tasks for k, stg in enumerate(self._stages)]
+        stages_tasks = self._attach_sources([stg.tasks for stg in self._stages])
+        stage_of: Dict[int, int] = {}
+        for k, tasks in enumerate(stages_tasks):
+            for t in tasks:
+                stage_of[id(t)] = k
 
         consumers: Dict[int, List[Task]] = {}
         all_tasks = [t for tasks in stages_tasks for t in tasks]
@@ -330,7 +259,7 @@ class PipelineBuilder(_Context):
         self._sep_stages = sep_stages
 
         stages = self._stages[1:]
-        self._pipeline = Pipeline(
+        self._built = Pipeline(
             self._pipeline_firsts,
             self._pipeline_lasts,
             sep_stages,
@@ -345,35 +274,15 @@ class PipelineBuilder(_Context):
     @property
     def pipeline(self) -> Pipeline:
         """The `Pipeline` built at the end of the `with` block."""
-        if self._pipeline is None:
-            raise exceptions.RuntimeError("The pipeline is built at the end of the 'with streampu.pipeline()' block.")
-        return self._pipeline
+        return self._get_built()
 
     @property
     def stages_description(self) -> List[Stage]:
         """The stages as described by the user (`Stage` objects)."""
         return list(self._stages)
 
-    def __getattr__(self, name: str) -> Any:
-        # only called when `name` is not an attribute of the builder
-        if name.startswith("_"):
-            raise AttributeError(name)
-        return getattr(self.pipeline, name)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name.startswith("_") or name in self._LOCAL:
-            object.__setattr__(self, name, value)
-        else:
-            setattr(self.pipeline, name, value)
-
-    def __dir__(self) -> list:
-        out = list(object.__dir__(self))
-        if self._pipeline is not None:
-            out += [n for n in dir(self._pipeline) if n not in out]
-        return out
-
     def __repr__(self) -> str:
-        lines = [f"PipelineBuilder({'built' if self._pipeline is not None else 'not built'})"]
+        lines = [f"PipelineBuilder({'built' if self._built is not None else 'not built'})"]
         for k, stg in enumerate(self._stages):
             if k > 0:
                 bs = self._buffer_size if stg.buffer_size is None else stg.buffer_size
